@@ -3,9 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from optimized_bottleneck_driving_force import Pathway
 
-def main():
-    G0 = [-20, -20, 3, 6, -20, -20, 1, 1, 1, -20, -20, -20] # in units of RT
-    N = len(G0)
+def compare():
+    G0 = np.random.randn(10, 1)*5 - 3
+#    G0 = [-20, -20, 3, 6, -20, -20, 1, 1, 1, -20, -20, -20] # in units of RT
+    N = G0.shape[0]
     fluxes = [1] * N
     S = np.zeros((N+1, N))
     for i in xrange(N):
@@ -16,14 +17,16 @@ def main():
     path = Pathway(S, fluxes, G0, x_min, x_max)
 
     obd, params = path.FindOBD()
+    if obd < 0:
+        return None, None
 
     cba, params = path.FindCBA()
     lnC_opt = params['concentrations']
     G_opt = list(params['Gibbs energies'].flat)
 
-    print "OBD = %.3g" % obd
-    print "OBD(min enz.) = %.3g" % -np.max(G_opt)
-    return
+    obd_cost = -np.max(G_opt)
+    print obd, obd_cost
+    return obd, obd_cost
     
     plt.subplot(121)
     plt.plot(np.cumsum([0] + G0), '-b', label='$\Delta_r G\'^\circ$')
@@ -39,5 +42,17 @@ def main():
 
     plt.show()
     
+def multi_compare():
+    data = []
+    for i in xrange(20):
+        obd, obd_cost = compare()
+        if obd is not None:
+            data.append((obd, obd_cost))
+    data = np.array(data)
+    plt.plot(data[:,0], data[:,1], '.')
+    plt.xlabel('OBD')
+    plt.ylabel('bottleneck DF after enzyme cost optimization')
+    plt.show()
+    
 if __name__ == "__main__":
-    main()
+    multi_compare()
