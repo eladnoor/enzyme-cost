@@ -2,6 +2,7 @@ import numpy as np
 import pulp
 import cvxpy
 import types
+import scipy.optimize
 
 def CastToColumnVector(v):
     if type(v) == types.ListType:
@@ -243,3 +244,33 @@ class Pathway(object):
                   'concentrations' : np.exp(lnC.value),
                   'Gibbs energies' : G.value}
         return cba, params
+    
+    def calc_E(self, x):
+        S = np.matrix(self.S)
+        x = np.matrix(x.flat)
+        thermo = 1 - np.exp(self.G0 + S.T * x.T)
+        E = np.dot((1.0 / thermo).T, self.fluxes)
+        return float(E)
+    
+    def FindECF(self):
+        """
+            Solves the minimal enzyme cost function assuming the rate law: 
+            
+            v_i = E_i * (1 - exp(G_i)) * Pkin(x)
+            
+            where 'G' is the reaction Gibbs energy (in units of RT) 
+            and 'Pkin' is a polynomial representing the kinetic term 
+            where 'x' are the log-concentrations of metabolites
+        """
+        
+        fun = lambda x : self.calc_E(x)
+        x0 = (self.x_min + self.x_max) / 2
+
+        print fun(x0)
+
+        res = scipy.optimize.minimize(fun, x0)
+        if res.success:
+            return res.x
+        else:
+            print "No solution found: " + res.message
+            return None

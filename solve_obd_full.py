@@ -54,5 +54,20 @@ def multi_compare():
     plt.ylabel('bottleneck DF after enzyme cost optimization')
     plt.show()
     
+def try_ECF():
+#    G0 = np.random.randn(10, 1)*5 - 3
+    G0 = np.array([-20, -20, -3, -6, -20, -20, -1, -1, -1, -20, -20, -20]) # in units of RT
+    N = G0.shape[0]
+    fluxes = [1] * N
+    S = np.zeros((N+1, N))
+    for i in xrange(N):
+        S[i, i] = -1
+        S[i+1, i] = 1
+    x_min = np.ones((N+1, 1)) * -6 * np.log(10)
+    x_max = np.ones((N+1, 1)) * -2 * np.log(10)
+    path = Pathway(S, fluxes, G0, x_min, x_max)
+    print path.FindECF()
+    
 if __name__ == "__main__":
-    multi_compare()
+    #multi_compare()
+    try_ECF()
