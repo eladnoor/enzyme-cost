@@ -1,13 +1,12 @@
 import numpy as np
 import pulp
-import cvxpy
 import types
 import scipy.optimize
 
 def CastToColumnVector(v):
     if type(v) == types.ListType:
         return np.array(v, ndmin=2).T
-    if type(v) == np.ndarray:
+    if type(v) in [np.ndarray, np.matrix]:
         return np.array(v.flat, ndmin=2).T
     else:
         raise ValueError('Can only cast lists or numpy arrays, not ' + str(type(v)))
@@ -76,7 +75,7 @@ class Pathway(object):
         # Create the driving force variable and add the relevant constraints
         A, b, c = self._MakeDrivingForceConstraints()
        
-        lp = pulp.LpProblem("OBD", pulp.LpMaximize)
+        lp = pulp.LpProblem("MDF", pulp.LpMaximize)
         
         # ln-concentration variables
         l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
@@ -167,21 +166,22 @@ class Pathway(object):
         
         return lp, total_g
         
-    def FindOBD(self):
+    def FindMDF(self):
         """
-            Find the OBD (Optimized Bottleneck Driving-Force)
+            Find the MDF (Optimized Bottleneck Driving-Force)
        
             Returns:
-                A pair of the resulting OBD (in units of RT)
+                A pair of the resulting MDF (in units of RT)
                 and a dictionary of all the
-                parameters and the resulting OBD value
+                parameters and the resulting MDF value
         """
         lp_primal, x = self._MakeOBEProblem()
+        lp_primal.writeLP('res/mdf.lp')
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve OBD primal")
+            raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
             
-        obd = pulp.value(x[-1])
+        mdf = pulp.value(x[-1])
         conc = np.matrix([np.exp(pulp.value(x[j])) for j in xrange(self.Nc)]).T
     
         lp_dual, w, z, u = self._MakeOBEProblemDual()
@@ -194,27 +194,28 @@ class Pathway(object):
         
         # find the maximum and minimum total Gibbs energy of the pathway,
         # under the constraint that the driving force of each reaction is >= OBE
-        lp_total, total_dg = self._GetTotalEnergyProblem(obd - 1e-6, pulp.LpMinimize)
+        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
         lp_total.solve(pulp.CPLEX(msg=0))
         if lp_total.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
         min_tot_dg = pulp.value(total_dg)
     
-        lp_total, total_dg = self._GetTotalEnergyProblem(obd - 1e-6, pulp.LpMaximize)
+        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
         lp_total.solve(pulp.CPLEX(msg=0))
         if lp_total.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
         max_tot_dg = pulp.value(total_dg)
         
-        params = {'OBD': obd,
+        params = {'MDF': mdf,
                   'concentrations' : conc,
                   'reaction prices' : reaction_prices,
                   'compound prices' : compound_prices,
                   'maximum total dG' : max_tot_dg,
                   'minimum total dG' : min_tot_dg}
-        return obd, params
+        return mdf, params
     
     def FindCBA(self):
+        import cvxpy
         """
             Solves the minimal enzyme cost function assuming the rate law: 
             

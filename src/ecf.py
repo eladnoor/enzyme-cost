@@ -1,0 +1,499 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Feb 18 15:40:11 2015
+
+@author: noore
+"""
+
+import itertools
+import types
+import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from scipy.integrate import ode
+from optimized_bottleneck_driving_force import Pathway
+
+RT = 8.31e-3 * 298.15
+
+class ThermodynamicallyInfeasibleError(Exception):
+
+    def __init__(self, y=None):
+        if y is None:
+            Exception.__init__(self, 'this reaction system has no feasible solutions')
+        else:
+            Exception.__init__(self, 'y = %s : is thermodynamically infeasible' 
+                                     % str(np.exp(y)))
+    
+    pass
+
+class NonSteadyStateSolutionError(Exception):
+    pass
+
+class ECF(object):
+    
+    def __init__(self, S, v, kcat, dG0, K_subs, K_prod,
+                 V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4):
+        """
+            Construct a toy model with N intermediate metabolites (and N+1 reactions)
+            
+            Arguments:
+                S       - stoichiometric matrix
+                v       - steady-state fluxes [umol/min]
+                kcat    - specific activities [umol/min/mg]
+                dG0     - standard Gibbs free energies of reaction [kJ/mol]
+                K_subs  - Michaelis-Menten coefficients of reaction substrates [M]
+                K_prod  - Michaelis-Menten coefficients of reaction products [M]
+                
+                V       - cell volume [um^3]
+                c_range - allowed range for internal metabolite concentration [M]
+                c_fixed - concentration of external metabolites [M]
+        """
+        self.S = S
+        self.v = v
+        self.kcat = kcat
+        self.dG0 = dG0
+        
+        self.K_subs = K_subs
+        self.K_prod = K_prod
+        
+        self.S_subs = abs(self.S)
+        self.S_prod = abs(self.S)
+        self.S_subs[np.where(self.S > 0)] = 0
+        self.S_prod[np.where(self.S < 0)] = 0
+        self.V = V
+        self.y_range = map(np.log, c_range)
+        self.y_fixed = np.log(c_fixed)
+        
+        self.subs_denom = np.sum(np.multiply(self.S_subs, np.log(self.K_subs)), axis=0).T
+        self.prod_denom = np.sum(np.multiply(self.S_prod, np.log(self.K_prod)), axis=0).T
+        
+        self.Nr = self.S.shape[1]
+        self.Nc = self.S.shape[0]
+        self.Nint = self.Nc - 2
+        
+        # check that v is a possible steady-state flux solution
+        if (np.abs(self.S[1:-1,:] * v) > 1e-6).any():
+            raise NonSteadyStateSolutionError('the provided flux "v" is not a '
+            'steady-state solution of the provided stoichiometric model')
+        
+        
+    def y_to_lnC(self, y):
+        """
+            The difference between lnC and y, is that lnC includes also the
+            concentrations of the fixed (external) metabolites
+        """
+        if y.shape == (self.Nint, ):
+            y = np.matrix(y).T
+        assert y.shape == (self.Nint, 1)
+
+        return np.vstack([self.y_fixed, y, self.y_fixed])
+    
+    def ECF1(self, lnC):
+        """
+            C - a matrix of metabolite log-concentrations, where the rows are metabolites in the same order
+                as in S, and the columns are indices for different points in the metabolite polytope (i.e.
+                conditions).
+        """
+        # lnC is not used for ECF1, except to determine the size of the result
+        # matrix.
+        # we multiply by 1e-3 to convert the kcat to umol/min/<gr> instead of <mg>
+        return np.tile(np.multiply(self.v, 1e-3/self.kcat), (1, lnC.shape[1]))
+
+    def driving_force(self, lnC):
+        # calculate the driving force for every reaction in every condition
+        assert lnC.shape[0] == self.Nc
+        return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - self.S.T * lnC
+
+    def eta_thermodynamic(self, lnC):
+        df = self.driving_force(lnC)
+        
+        # replace infeasbile reactions with a positive driving force to avoid negative cost in ECF2
+        eta_thermo = 1.0 - np.exp(-df)
+        
+        # set the value of eta to a negative number when the reaction is infeasible
+        # so it will be easy to find them, and also calculating 1/x will not return
+        # an error
+        eta_thermo[df <= 0] = -1.0
+        return eta_thermo
+
+    def eta_kinetic(self, lnC):
+        kin_subs = np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
+        kin_prod = np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
+        eta_kin = kin_subs/(1.0 + kin_subs + kin_prod)
+        return eta_kin        
+
+    def ECF2(self, lnC):
+        """
+            lnC - a matrix of metabolite log-concentrations, where the rows are metabolites in the same order
+                  as in S, and the columns are indices for different points in the metabolite polytope (i.e.
+                  conditions).
+        """
+        ECF2 = np.multiply(self.ECF1(lnC), 1.0/self.eta_thermodynamic(lnC))
+    
+        # fix the "fake" values that were given in ECF2 to infeasible reactions
+        ECF2[ECF2 < 0] = np.nan
+        
+        return ECF2
+
+    def ECF3(self, lnC):
+        """
+            lnC - a matrix of metabolite log-concentrations, where the rows are metabolites in the same order
+                  as in S, and the columns are indices for different points in the metabolite polytope (i.e.
+                  conditions).
+        """
+        # calculate the product of all substrates and products for the kinetic term
+        return np.multiply(self.ECF2(lnC), 1.0/self.eta_kinetic(lnC))
+
+    def generate_contour_data(self, n=300):
+        rng = np.linspace(self.y_range[0], self.y_range[1], n)
+        X0, X1 = np.meshgrid(np.exp(rng), np.exp(rng))
+        C = np.matrix(list(itertools.product(rng, repeat=2)))
+        
+        F = self.y_fixed * np.ones((C.shape[0], 1))
+        lnC = np.hstack([F, C] + [F]*(self.Nc-3)).T
+         
+        E = self.ECF3(lnC)
+
+        return X0, X1, E
+        
+    def plot_contour(self, n=300):
+        X0, X1, E = self.generate_contour_data(n)
+
+        # calculate the total cost of all enzymes
+        Etot = np.sum(E, axis=0)
+        Etot = np.array(np.reshape(Etot.T, X0.shape).T)
+
+        fig, axarr = plt.subplots(1, self.Nr+1, figsize=((self.Nr+1)*3,4),
+                                  sharey=True)
+        axarr[0].set_ylabel(r'$X_1$ [M]')
+        for i, ax in enumerate(axarr):
+            ax = axarr[i]
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+            if i == self.Nr:
+                tmp = Etot
+                ax.set_title(r'$\varepsilon$')
+            else:
+                tmp = np.array(np.reshape(E[i,:].T, X0.shape).T)
+                ax.set_title(r'$\varepsilon_%d$' % (i+1))
+            ax.contourf(X0, X1, np.log(tmp), cmap=plt.cm.PuBu)
+            ax.set_xlabel(r'$X_0$ [M]')
+        
+        plt.tight_layout(w_pad=0)
+
+        y_min = self.ECM()
+        ax.plot([y_min[0,0]], [y_min[1,0]], 'xr', label='ECM')
+        
+        y_mdf = self.MDF()
+        ax.plot([y_mdf[0,0]], [y_mdf[1,0]], 'xy', label='MDF')
+        ax.legend()
+
+    def plot_Y_slice(self, n=1000, Yvalue=None):
+        fig = plt.figure(figsize=(6,6))
+        Yvalue = Yvalue or self.y_fixed
+
+        lnC = np.ones((4, n))*self.y_fixed
+        lnC[1,:] = np.linspace(self.y_range[0], self.y_range[1], n)
+        lnC[2,:] = Yvalue
+        
+        #data = np.vstack([self.ECF1(lnC), self.ECF2(lnC), self.ECF3(lnC)])
+        data = self.ECF3(lnC)
+        data = np.vstack([data, data.sum(axis=0)])
+        ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
+        ax.plot(lnC[1, :], data.T, '-', linewidth=2)
+        ax.legend([r'$R_%d$' % (i+1) for i in xrange(3)] + ['Total'], loc='best')
+        ax.set_xlabel(r'[$X_0$]')
+        ax.set_ylabel(r'$\varepsilon$')
+        ax.set_title('[$X_1$] = %.e M' % Yvalue)
+        ax.set_ylim(ymax=1e2)
+        fig.tight_layout()
+
+    def plot_Y_slices(self, nx=300, ny=6):
+        fig = plt.figure(figsize=(8,8))
+        x = 10**np.linspace(-4, -2, nx)
+        y = 10**np.linspace(-3.6, -2.4, ny)
+        X, Y = np.meshgrid(x, y)
+        
+        C = np.ones((4, nx*ny))*self.c_fixed
+        C[1,:] = X.flat
+        C[2,:] = Y.flat
+        lnC = np.log(C)
+        
+        E = self.ECF3(lnC)
+        Etot = np.sum(E, axis=0)
+        Etot = np.array(np.reshape(Etot.T, X.shape).T)
+
+        ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
+        ax.plot(x, Etot, '-', linewidth=2)
+        ax.legend(map(lambda i:'[B] = %.1e M' % i, y), loc='lower right')
+        ax.set_xlabel('[$X_0$]')
+        ax.set_ylabel('$\varepsilon$')
+        ax.set_ylim(ymax=1e3)
+        fig.tight_layout()
+
+    def ECM(self):
+        
+        def optfun(y):
+            e = self.ECF3(self.y_to_lnC(y)).sum(axis=0)[0,0]
+            #print lnx.T, e
+            if np.isnan(e):
+                return 1e5
+            else:
+                return np.log(e)
+                
+        def constfun(y):
+            return self.driving_force(self.y_to_lnC(y))
+        
+        y0 = self.MDF()
+        bounds = self.y_range
+
+        res = minimize(optfun, y0, bounds=[bounds]*self.Nint, method='TNC')
+        if not res.success:
+            print res
+        return np.matrix(res.x).T
+
+    def MDF(self):
+        """
+            Find an initial point (x0) for the optimization using MDF.
+        """
+        c_bounds = np.array([(self.y_fixed, self.y_fixed)] + \
+                            [self.y_range] * self.Nint + \
+                            [(self.y_fixed, self.y_fixed)])
+        
+        p = Pathway(self.S, self.v, self.dG0, c_bounds[:, 0], c_bounds[:, 1])
+        mdf, params = p.FindMDF()
+        if np.isnan(mdf) or mdf < 0.0:
+            raise ThermodynamicallyInfeasibleError()
+        return np.log(params['concentrations'][1:-1, 0])
+    
+    def is_feasible(self, y):
+        lnC = self.y_to_lnC(y)
+        df = self.driving_force(lnC)
+        return (df > 0).all()
+    
+    def simulate(self, E, y0=None, eps=1e-5, figure=None):
+        """
+            Find the steady-state solution for the metabolite concentrations
+            given the enzyme abundances
+            
+            Arguments:
+                E    - enzyme abundances [gr]
+                y0   - initial concentration of internal metabolites (default: MDF solution)
+                eps  - the minimal change under which the simulation will stop
+            
+            Returns:
+                v    - the steady state flux
+                y    - the steady state internal metabolite concentrations
+        """
+        if type(E) == types.ListType:
+            assert len(E) == self.Nr
+            E = np.matrix(E).T
+        else:
+            assert E.shape == (self.Nr, 1)
+            
+        if (E <= 0).any():
+            return np.nan, np.nan
+        
+        # normalize the total enzyme amount to 1000 mg
+        #E *= (1000.0/E.sum(0))
+
+        def y_to_v(y):
+            lnC = self.y_to_lnC(y)
+            
+            # calculate the rate of each reaction, kcat is in umol/min/mg and 
+            # E is in gr, so we multiply by 1000
+            vmax = np.multiply(self.kcat, E) * 1000.0 # umol/min
+            v = np.multiply(np.multiply(vmax, self.eta_thermodynamic(lnC)), self.eta_kinetic(lnC))
+            return v
+        
+        def f(t, y):
+            # we only care about the time derivatives of the internal metabolites
+            # (i.e. the first and last one are assumed to be fixed in time)
+            return self.S[1:-1,:] * y_to_v(y)
+        
+        t0 = 0; dt = 0.1; t1 = 1e2
+        if y0 is None:
+            y0 = np.ones((self.Nint, 1)) * self.y_fixed
+        else:
+            assert y0.shape == (self.Nint, 1)
+
+        if not self.is_feasible(y0):
+            raise ThermodynamicallyInfeasibleError(y0)
+        
+        v = y_to_v(y0)
+
+        T = np.array([t0])
+        Y = y0.T
+        V = v.T
+        
+        r = ode(f)
+        r.set_initial_value(y0, t0)
+        
+        while r.successful() and r.t < t1 and (np.abs(self.S[1:-1,:] * v) > eps).any():
+            r.integrate(r.t + dt)
+            v = y_to_v(r.y)
+
+            T = np.hstack([T, r.t])
+            Y = np.vstack([Y, r.y.T])
+            V = np.vstack([V, v.T])
+        
+        if figure is not None:
+            ax1 = figure.add_subplot(1, 3, 1)
+            ax1.set_yscale('log')
+            ax1.plot(T, np.exp(Y))
+            ax1.set_xlabel('time [min]')
+            ax1.set_ylabel('concentration [M]')
+            ax1.set_ylim(np.exp(self.y_range))
+            ax1.legend(map(lambda i: '$X_%d$'% i, xrange(self.Nint)), loc='best')
+            
+            X0, X1, E = self.generate_contour_data()
+            Etot = np.sum(E, axis=0)
+            Etot = np.array(np.reshape(Etot.T, X0.shape).T)
+    
+            ax2 = figure.add_subplot(1, 3, 2)
+            ax2.plot(T, V)
+            ax2.set_xlabel('time [min]')
+            ax2.set_ylabel('flux [$\mu$mol/min]')
+            ax2.legend(map(lambda i: '$v_%d$'% i, xrange(self.Nr)), loc='best')
+    
+            ax3 = figure.add_subplot(1, 3, 3)
+            ax3.set_xscale('log')
+            ax3.set_yscale('log')
+            ax3.contourf(X0, X1, np.log(Etot), cmap=plt.cm.PuBu)
+            ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5, color='r', label=r'$y(0)$')
+            ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=2, color='y', label=r'$y(t)$')
+            ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5, color='g', label=r'$y(\infty)$')
+            ax3.set_xlabel('$X_0$ [M]')
+            ax3.set_ylabel('$X_1$ [M]')
+            ax3.legend(loc='best')
+        
+        if r.t >= t1:
+            return np.nan, np.nan
+        else:
+            return V[-1, 0], Y[-1, :]
+        
+    def simulate_3D(self, n=30, figure=None):
+        if self.Nr != 3:
+            raise Exception('You can only use simulate_3D for models of 3 enzymes')
+            
+        y0 = np.ones((self.Nint, 1)) * self.y_fixed
+        if not self.is_feasible(y0):
+            raise ThermodynamicallyInfeasibleError('initial point y0 = %s' % str(y0))
+        
+        if self.Nint != 2:
+            raise ValueError('can only simulate ECM for a network with 2 internal metabolites')
+
+        # cover all angles between 0 and 90 degrees in spherical coordinates
+        # exclude the 0 and 90 since they lead to a 0 in one of the enzyme levels
+        rng = np.linspace(0.0, np.pi/2.0, n+2)[1:-1]
+        
+        E_sph = np.array(list(itertools.product(rng, repeat=2))).T
+        
+        # convert spherical coords to cartesian on the unit sphere
+        # note that the L2 norm is equal to 1, but that doesn't mean
+        # that the total enzyme is always the same (i.e. the L1 norm)
+        E0 = np.multiply(np.cos(E_sph[0, :]), np.sin(E_sph[1 ,:]))
+        E1 = np.multiply(np.sin(E_sph[0, :]), np.sin(E_sph[1 ,:]))
+        E2 = np.cos(E_sph[1 ,:])
+        E = np.vstack([E0, E1, E2])
+        
+        V = []
+        for i in xrange(E.shape[1]):
+            if i % n == 0:
+                print i,
+            v, _ = self.simulate(E[:, i:i+1], y0)
+            
+            # normalize the flux by the total amount of the enzyme
+            # since we are maximizing the flux per enzyme
+            V.append(v / float(E[:, i:i+1].sum(0)))
+        print
+        V = np.array(V)
+        i_max = np.nanargmax(V)
+        
+        E_max = E[:, i_max:i_max+1]
+        v_max, y_max = self.simulate(E_max, y0)
+        E_max *= (self.v[0, 0] / v_max) # rescale E to match the enzyme cost per flux self.v
+        
+#        plt.figure(figsize=(6,5))
+#        E0 = E0.reshape((n, n))
+#        E1 = E1.reshape((n, n))
+#        V = V.reshape((n, n))
+#        
+#        plt.contourf(E0, E1, V, cmap=plt.cm.PuBu)
+#        plt.title(r'$v / \varepsilon$ [umol/min/g]')
+#        plt.xlabel(r'$\varepsilon_0$ [g]')
+#        plt.ylabel(r'$\varepsilon_1$ [g]')
+#        plt.colorbar()
+
+        # plot the contour of v/e, by projecting it the plane whose normal is
+        # E = (1,1,1)
+        if figure is not None:
+            figure.suptitle(r'$v / \varepsilon$ [umol/min/g]')
+            ax = figure.add_subplot(1, 1, 1)
+            projection = np.matrix([[1.0/np.sqrt(2), -1.0/np.sqrt(2), 0.0],
+                                    [0.0,             0.0,            1.0],
+                                    [1.0/np.sqrt(3),  1.0/np.sqrt(3), 1.0/np.sqrt(3)]])
+            Eproj = projection * E
+            E0 = Eproj[0,:].reshape((n, n))
+            E1 = Eproj[1,:].reshape((n, n))
+            V = V.reshape((n, n))
+            
+            mappable = ax.contourf(E0, E1, V, cmap=plt.cm.PuBu)
+            plt.colorbar(mappable, ax=ax)
+    
+            # plot the 3 pure enzyme distributions (orthogonal basis)
+            for i in xrange(3):
+                ax.plot(projection[0, i], projection[1, i], 'x', color='r')
+                ax.text(projection[0, i], projection[1, i], r'$\varepsilon_%d = 1$' % i)
+            ax.set_xlim(-0.8, 0.8)
+            ax.set_ylim(-0.1, 1.1)
+        
+        return E_max, y_max
+        
+    def generate_pdf_report(self, pdf_fname):
+        y_mdf = self.MDF()
+        E_mdf = self.ECF3(self.y_to_lnC(y_mdf))
+
+        y_ecm = self.ECM()
+        E_ecm = self.ECF3(self.y_to_lnC(y_ecm))
+
+
+        pp = PdfPages(pdf_fname)
+        logform = lambda x:'%.2e' % np.exp(x)
+        linform = lambda x:'%.2e' % x
+
+        fig0 = plt.figure(figsize=(5, 4))
+        E_max, y_max = self.simulate_3D(10, figure=fig0)
+        pp.savefig(fig0)
+        
+        print '-' * 50
+        print 'Calculating maximal flux by simulating kinetic system:'
+        print 'y [M] = ' + ', '.join(map(logform, y_max.flat))
+        print 'E [g] = ' + ', '.join(map(linform, E_max.flat))
+        print 'total cost per flux [g] = %s' % linform(E_max.sum(0))
+        fig1 = plt.figure(figsize=(14, 3))
+        fig1.suptitle('max v/e', fontsize=10)
+        self.simulate(E_max, figure=fig1)
+        pp.savefig(fig1)
+        
+        print '-' * 50
+        print 'Simulating the flux using the ECM solution:'
+        print 'y [M] = ' + ', '.join(map(logform, y_ecm.flat))
+        print 'E [g] = ' + ', '.join(map(linform, E_ecm.flat))
+        print 'total cost per flux [g] = %s' % linform(E_ecm.sum(0))
+        fig2 = plt.figure(figsize=(14, 3))
+        fig2.suptitle('ECM', fontsize=10)
+        self.simulate(E_ecm, figure=fig2)
+        pp.savefig(fig2)
+        
+        print '-' * 50
+        print 'Simulating the flux using the MDF solution:'
+        print 'y [M] = ' + ', '.join(map(logform, y_mdf.flat))
+        print 'E [g] = ' + ', '.join(map(linform, E_mdf.flat))
+        print 'total cost per flux [g] = %s' % linform(E_mdf.sum(0))
+        fig3 = plt.figure(figsize=(14, 3))
+        fig3.suptitle('MDF', fontsize=10)
+        self.simulate(E_mdf, figure=fig3)
+        pp.savefig(fig3)
+        pp.close()
