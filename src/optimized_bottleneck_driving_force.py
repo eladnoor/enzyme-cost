@@ -176,7 +176,7 @@ class Pathway(object):
                 parameters and the resulting MDF value
         """
         lp_primal, x = self._MakeOBEProblem()
-        lp_primal.writeLP('res/mdf.lp')
+        lp_primal.writeLP('../res/mdf.lp')
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")

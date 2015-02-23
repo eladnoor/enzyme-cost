@@ -10,6 +10,7 @@ import types
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 from scipy.optimize import minimize
 from scipy.integrate import ode
 from optimized_bottleneck_driving_force import Pathway
@@ -147,7 +148,7 @@ class ECF(object):
 
     def generate_contour_data(self, n=300):
         rng = np.linspace(self.y_range[0], self.y_range[1], n)
-        X0, X1 = np.meshgrid(np.exp(rng), np.exp(rng))
+        X0, X1 = np.meshgrid(rng, rng)
         C = np.matrix(list(itertools.product(rng, repeat=2)))
         
         F = self.y_fixed * np.ones((C.shape[0], 1))
@@ -177,7 +178,8 @@ class ECF(object):
             else:
                 tmp = np.array(np.reshape(E[i,:].T, X0.shape).T)
                 ax.set_title(r'$\varepsilon_%d$' % (i+1))
-            ax.contourf(X0, X1, np.log(tmp), cmap=plt.cm.PuBu)
+            ax.contourf(np.exp(X0), np.exp(X1), tmp,
+                        locator=matplotlib.ticker.LogLocator(), cmap=plt.cm.PuBu)
             ax.set_xlabel(r'$X_0$ [M]')
         
         plt.tight_layout(w_pad=0)
@@ -257,11 +259,11 @@ class ECF(object):
         """
             Find an initial point (x0) for the optimization using MDF.
         """
-        c_bounds = np.array([(self.y_fixed, self.y_fixed)] + \
+        y_bounds = np.array([(self.y_fixed, self.y_fixed)] + \
                             [self.y_range] * self.Nint + \
                             [(self.y_fixed, self.y_fixed)])
         
-        p = Pathway(self.S, self.v, self.dG0, c_bounds[:, 0], c_bounds[:, 1])
+        p = Pathway(self.S, self.v, self.dG0/RT, y_bounds[:, 0], y_bounds[:, 1])
         mdf, params = p.FindMDF()
         if np.isnan(mdf) or mdf < 0.0:
             raise ThermodynamicallyInfeasibleError()
@@ -360,7 +362,9 @@ class ECF(object):
             ax3 = figure.add_subplot(1, 3, 3)
             ax3.set_xscale('log')
             ax3.set_yscale('log')
-            ax3.contourf(X0, X1, np.log(Etot), cmap=plt.cm.PuBu)
+            ax3.contourf(np.exp(X0), np.exp(X1), Etot,
+                         locator=matplotlib.ticker.LogLocator(),
+                         cmap=plt.cm.PuBu)
             ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5, color='r', label=r'$y(0)$')
             ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=2, color='y', label=r'$y(t)$')
             ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5, color='g', label=r'$y(\infty)$')
@@ -384,31 +388,44 @@ class ECF(object):
         if self.Nint != 2:
             raise ValueError('can only simulate ECM for a network with 2 internal metabolites')
 
-        # cover all angles between 0 and 90 degrees in spherical coordinates
-        # exclude the 0 and 90 since they lead to a 0 in one of the enzyme levels
-        rng = np.linspace(0.0, np.pi/2.0, n+2)[1:-1]
+        # map points on the unit square to the L2 unit sphere.
+        # (0, 0) -> (0, 1, 0)
+        # (0, 1) -> (1, 0, 0)
+        # (1, 0) -> (0, 0, 1)
+        # this has to be an affine transformation (since 0 is not mapped to 0)
+        # we add another 'fake' dimension which is always 1
+        proj2to3 = np.matrix([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]) * \
+                   np.matrix([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]]).I
         
-        E_sph = np.array(list(itertools.product(rng, repeat=2))).T
+        rng = np.linspace(0.0, 1.0, n+3)
         
-        # convert spherical coords to cartesian on the unit sphere
-        # note that the L2 norm is equal to 1, but that doesn't mean
-        # that the total enzyme is always the same (i.e. the L1 norm)
-        E0 = np.multiply(np.cos(E_sph[0, :]), np.sin(E_sph[1 ,:]))
-        E1 = np.multiply(np.sin(E_sph[0, :]), np.sin(E_sph[1 ,:]))
-        E2 = np.cos(E_sph[1 ,:])
-        E = np.vstack([E0, E1, E2])
+#        emat = np.matrix(np.ones((3, n*(n+1)/2)))
+#        k = 0
+#        for i in xrange(n):
+#            for j in xrange(n-i):
+#                emat[0, k] = rng[i]
+#                emat[1, k] = rng[j]
+#                k += 1
+        emat = np.matrix(list(itertools.product(rng, repeat=2))).T
+        emat = np.vstack([emat, np.ones((1, emat.shape[1]))])
+        E = proj2to3 * emat
         
         V = []
         for i in xrange(E.shape[1]):
             if i % n == 0:
                 print i,
-            v, _ = self.simulate(E[:, i:i+1], y0)
+            if (E[:, i] <= 0).any():
+                V.append(0)
+                continue
+            v, _ = self.simulate(np.abs(E[:, i:i+1]), y0, eps=1e-3)
             
             # normalize the flux by the total amount of the enzyme
             # since we are maximizing the flux per enzyme
             V.append(v / float(E[:, i:i+1].sum(0)))
         print
         V = np.array(V)
+        if np.isnan(V).all():
+            raise Exception('None of the simulations converged')
         i_max = np.nanargmax(V)
         
         E_max = E[:, i_max:i_max+1]
@@ -429,71 +446,75 @@ class ECF(object):
         # plot the contour of v/e, by projecting it the plane whose normal is
         # E = (1,1,1)
         if figure is not None:
-            figure.suptitle(r'$v / \varepsilon$ [umol/min/g]')
-            ax = figure.add_subplot(1, 1, 1)
-            projection = np.matrix([[1.0/np.sqrt(2), -1.0/np.sqrt(2), 0.0],
-                                    [0.0,             0.0,            1.0],
-                                    [1.0/np.sqrt(3),  1.0/np.sqrt(3), 1.0/np.sqrt(3)]])
-            Eproj = projection * E
-            E0 = Eproj[0,:].reshape((n, n))
-            E1 = Eproj[1,:].reshape((n, n))
-            V = V.reshape((n, n))
+            ax3 = figure.add_subplot(1, 1, 1)
+            ax3.set_title(r'$v / \varepsilon$ [umol/min/g]')
+            V = V.reshape((n+3, n+3))
             
-            mappable = ax.contourf(E0, E1, V, cmap=plt.cm.PuBu)
-            plt.colorbar(mappable, ax=ax)
-    
-            # plot the 3 pure enzyme distributions (orthogonal basis)
-            for i in xrange(3):
-                ax.plot(projection[0, i], projection[1, i], 'x', color='r')
-                ax.text(projection[0, i], projection[1, i], r'$\varepsilon_%d = 1$' % i)
-            ax.set_xlim(-0.8, 0.8)
-            ax.set_ylim(-0.1, 1.1)
+            proj2to2 = np.matrix([[-1.0, 1.0, 0.0], [0.0, 0.0, 2.0]]) * \
+                       np.matrix([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]]).I
+            X = proj2to2 * emat
+            x = X[0, :].reshape((n+3, n+3))
+            y = X[1, :].reshape((n+3, n+3))
+            mappable = ax3.contourf(x, y, V,
+                                   cmap=plt.cm.PuBu)
+            plt.colorbar(mappable, ax=ax3)
+            ## plot the 3 pure enzyme distributions (orthogonal basis)
+            ax3.plot([-1, 1, 0, -1], [0, 0, 2, 0], 'r-')
+            ax3.text(-1, -0.1, r'$\varepsilon_1 = 1$')
+            ax3.text(0.9, -0.1, r'$\varepsilon_0 = 1$')
+            ax3.text(0.1, 2, r'$\varepsilon_2 = 1$')
+            ax3.set_xlim(-1.2, 1.2)
+            ax3.set_ylim(-0.2, 2.2)
         
-        return E_max, y_max
+        return E_max, y_max, E
         
     def generate_pdf_report(self, pdf_fname):
+        logform = lambda x:'%.2e' % np.exp(x)
+        linform = lambda x:'%.2e' % x
+
         y_mdf = self.MDF()
         E_mdf = self.ECF3(self.y_to_lnC(y_mdf))
 
         y_ecm = self.ECM()
         E_ecm = self.ECF3(self.y_to_lnC(y_ecm))
 
-
-        pp = PdfPages(pdf_fname)
-        logform = lambda x:'%.2e' % np.exp(x)
-        linform = lambda x:'%.2e' % x
-
-        fig0 = plt.figure(figsize=(5, 4))
-        E_max, y_max = self.simulate_3D(10, figure=fig0)
-        pp.savefig(fig0)
-        
         print '-' * 50
-        print 'Calculating maximal flux by simulating kinetic system:'
-        print 'y [M] = ' + ', '.join(map(logform, y_max.flat))
-        print 'E [g] = ' + ', '.join(map(linform, E_max.flat))
-        print 'total cost per flux [g] = %s' % linform(E_max.sum(0))
+        print 'Simulating the flux using the MDF solution:'
+        print 'y [M] = ' + ', '.join(map(logform, y_mdf.flat))
+        print 'E [g] = ' + ', '.join(map(linform, E_mdf.flat))
+        print 'total cost per flux [g] = %s' % linform(E_mdf.sum(0))
         fig1 = plt.figure(figsize=(14, 3))
-        fig1.suptitle('max v/e', fontsize=10)
-        self.simulate(E_max, figure=fig1)
-        pp.savefig(fig1)
-        
+        fig1.suptitle(r'MDF : $\varepsilon = %s$' % linform(E_mdf.sum(0)),
+                      fontsize=12)
+        self.simulate(E_mdf, figure=fig1)
+
         print '-' * 50
         print 'Simulating the flux using the ECM solution:'
         print 'y [M] = ' + ', '.join(map(logform, y_ecm.flat))
         print 'E [g] = ' + ', '.join(map(linform, E_ecm.flat))
         print 'total cost per flux [g] = %s' % linform(E_ecm.sum(0))
         fig2 = plt.figure(figsize=(14, 3))
-        fig2.suptitle('ECM', fontsize=10)
+        fig2.suptitle(r'ECM : $\varepsilon = %s$' % linform(E_ecm.sum(0)),
+                      fontsize=12)
         self.simulate(E_ecm, figure=fig2)
-        pp.savefig(fig2)
+        
+        fig4 = plt.figure(figsize=(6, 5))
+        E_max, y_max, E = self.simulate_3D(30, figure=fig4)
         
         print '-' * 50
-        print 'Simulating the flux using the MDF solution:'
-        print 'y [M] = ' + ', '.join(map(logform, y_mdf.flat))
-        print 'E [g] = ' + ', '.join(map(linform, E_mdf.flat))
-        print 'total cost per flux [g] = %s' % linform(E_mdf.sum(0))
+        print 'Calculating maximal flux by simulating kinetic system:'
+        print 'y [M] = ' + ', '.join(map(logform, y_max.flat))
+        print 'E [g] = ' + ', '.join(map(linform, E_max.flat))
+        print 'total cost per flux [g] = %s' % linform(E_max.sum(0))
         fig3 = plt.figure(figsize=(14, 3))
-        fig3.suptitle('MDF', fontsize=10)
-        self.simulate(E_mdf, figure=fig3)
+        fig3.suptitle(r'$max(v_0/\varepsilon)$ : $\varepsilon = %s$' % linform(E_max.sum(0)),
+                      fontsize=12)
+        self.simulate(E_max, figure=fig3)
+
+        pp = PdfPages(pdf_fname)
+        pp.savefig(fig1)
+        pp.savefig(fig2)
         pp.savefig(fig3)
+        pp.savefig(fig4)
         pp.close()
+        
