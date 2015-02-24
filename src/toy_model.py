@@ -17,7 +17,6 @@ import os
 if not os.path.exists('../res'):
     os.mkdir('../res')
 
-
 N = 2
 
 S = np.matrix(np.zeros((N + 2, N + 1)))
@@ -31,4 +30,4 @@ K_subs = 9e-2*np.matrix(np.matrix(np.ones((N + 2, N + 1))))
 K_prod = 1e-2*np.matrix(np.matrix(np.ones((N + 2, N + 1))))
 ecf = ECF(S, v, kcat, dG0, K_subs, K_prod)
 
-ecf.generate_pdf_report('../res/toy2.pdf')
+ecf.generate_pdf_report('../res/toy.pdf')

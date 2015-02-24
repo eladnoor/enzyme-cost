@@ -6,6 +6,7 @@ Created on Wed Feb 18 15:40:11 2015
 """
 
 import itertools
+import sys
 import types
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -332,7 +333,9 @@ class ECF(object):
         r = ode(f)
         r.set_initial_value(y0, t0)
         
-        while r.successful() and r.t < t1 and (np.abs(self.S[1:-1,:] * v) > eps).any():
+        while r.successful() and \
+              r.t < t1 and \
+              (r.t < 10*dt or (np.abs(self.S[1:-1,:] * v) > eps).any()):
             r.integrate(r.t + dt)
             v = y_to_v(r.y)
 
@@ -347,7 +350,8 @@ class ECF(object):
             ax1.set_xlabel('time [min]')
             ax1.set_ylabel('concentration [M]')
             ax1.set_ylim(np.exp(self.y_range))
-            ax1.legend(map(lambda i: '$X_%d$'% i, xrange(self.Nint)), loc='best')
+            ax1.legend(map(lambda i: '$X_%d$'% i, xrange(self.Nint)), loc='best',
+                       frameon=False)
             
             X0, X1, E = self.generate_contour_data()
             Etot = np.sum(E, axis=0)
@@ -357,7 +361,8 @@ class ECF(object):
             ax2.plot(T, V)
             ax2.set_xlabel('time [min]')
             ax2.set_ylabel('flux [$\mu$mol/min]')
-            ax2.legend(map(lambda i: '$v_%d$'% i, xrange(self.Nr)), loc='best')
+            ax2.legend(map(lambda i: '$v_%d$'% i, xrange(self.Nr)), loc='best',
+                       frameon=False)
     
             ax3 = figure.add_subplot(1, 3, 3)
             ax3.set_xscale('log')
@@ -366,11 +371,11 @@ class ECF(object):
                          locator=matplotlib.ticker.LogLocator(),
                          cmap=plt.cm.PuBu)
             ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5, color='r', label=r'$y(0)$')
-            ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=2, color='y', label=r'$y(t)$')
+            ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=3, color='y', label=r'$y(t)$')
             ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5, color='g', label=r'$y(\infty)$')
             ax3.set_xlabel('$X_0$ [M]')
             ax3.set_ylabel('$X_1$ [M]')
-            ax3.legend(loc='best')
+            ax3.legend(loc='best', frameon=False, numpoints=1)
         
         if r.t >= t1:
             return np.nan, np.nan
@@ -411,9 +416,9 @@ class ECF(object):
         E = proj2to3 * emat
         
         V = []
+        print 'Simulating dynamic system for multiple enzyme concentrations ...'
         for i in xrange(E.shape[1]):
-            if i % n == 0:
-                print i,
+            sys.stderr.write('%d%%\r' % (i * 100.0 / E.shape[1]))
             if (E[:, i] <= 0).any():
                 V.append(0)
                 continue
@@ -422,7 +427,7 @@ class ECF(object):
             # normalize the flux by the total amount of the enzyme
             # since we are maximizing the flux per enzyme
             V.append(v / float(E[:, i:i+1].sum(0)))
-        print
+        print '[DONE]'
         V = np.array(V)
         if np.isnan(V).all():
             raise Exception('None of the simulations converged')
@@ -430,21 +435,8 @@ class ECF(object):
         
         E_max = E[:, i_max:i_max+1]
         v_max, y_max = self.simulate(E_max, y0)
-        E_max *= (self.v[0, 0] / v_max) # rescale E to match the enzyme cost per flux self.v
+        E_over_v_max = E_max * (self.v[0, 0] / v_max) # rescale E to match the enzyme cost per flux self.v
         
-#        plt.figure(figsize=(6,5))
-#        E0 = E0.reshape((n, n))
-#        E1 = E1.reshape((n, n))
-#        V = V.reshape((n, n))
-#        
-#        plt.contourf(E0, E1, V, cmap=plt.cm.PuBu)
-#        plt.title(r'$v / \varepsilon$ [umol/min/g]')
-#        plt.xlabel(r'$\varepsilon_0$ [g]')
-#        plt.ylabel(r'$\varepsilon_1$ [g]')
-#        plt.colorbar()
-
-        # plot the contour of v/e, by projecting it the plane whose normal is
-        # E = (1,1,1)
         if figure is not None:
             ax3 = figure.add_subplot(1, 1, 1)
             ax3.set_title(r'$v / \varepsilon$ [umol/min/g]')
@@ -458,15 +450,22 @@ class ECF(object):
             mappable = ax3.contourf(x, y, V,
                                    cmap=plt.cm.PuBu)
             plt.colorbar(mappable, ax=ax3)
+            
+            ## mark the maximal steady-state flux point
+            ax3.plot(X[0, i_max], X[1, i_max], 'y.',
+                     label=r'$\varepsilon_{max} = (%s)$' % 
+                           ','.join(map(lambda x : '%.2f' % x, E_max.flat)))
+            ax3.legend(loc='upper left', numpoints=1, frameon=False)
+
             ## plot the 3 pure enzyme distributions (orthogonal basis)
             ax3.plot([-1, 1, 0, -1], [0, 0, 2, 0], 'r-')
-            ax3.text(-1, -0.1, r'$\varepsilon_1 = 1$')
-            ax3.text(0.9, -0.1, r'$\varepsilon_0 = 1$')
-            ax3.text(0.1, 2, r'$\varepsilon_2 = 1$')
-            ax3.set_xlim(-1.2, 1.2)
-            ax3.set_ylim(-0.2, 2.2)
+            ax3.text(-1, -0.1, r'$\varepsilon = (0,1,0)$')
+            ax3.text(0.9, -0.1, r'$\varepsilon = (1,0,0)$')
+            ax3.text(0.1, 2, r'$\varepsilon = (0,0,1)$')
+            ax3.set_xlim(-1.5, 1.5)
+            ax3.set_ylim(-0.5, 2.5)
         
-        return E_max, y_max, E
+        return E_over_v_max, y_max, E
         
     def generate_pdf_report(self, pdf_fname):
         logform = lambda x:'%.2e' % np.exp(x)
@@ -483,20 +482,22 @@ class ECF(object):
         print 'y [M] = ' + ', '.join(map(logform, y_mdf.flat))
         print 'E [g] = ' + ', '.join(map(linform, E_mdf.flat))
         print 'total cost per flux [g] = %s' % linform(E_mdf.sum(0))
-        fig1 = plt.figure(figsize=(14, 3))
+        fig1 = plt.figure(figsize=(12, 4))
         fig1.suptitle(r'MDF : $\varepsilon = %s$' % linform(E_mdf.sum(0)),
                       fontsize=12)
         self.simulate(E_mdf, figure=fig1)
+        fig1.tight_layout()
 
         print '-' * 50
         print 'Simulating the flux using the ECM solution:'
         print 'y [M] = ' + ', '.join(map(logform, y_ecm.flat))
         print 'E [g] = ' + ', '.join(map(linform, E_ecm.flat))
         print 'total cost per flux [g] = %s' % linform(E_ecm.sum(0))
-        fig2 = plt.figure(figsize=(14, 3))
+        fig2 = plt.figure(figsize=(12, 4))
         fig2.suptitle(r'ECM : $\varepsilon = %s$' % linform(E_ecm.sum(0)),
                       fontsize=12)
         self.simulate(E_ecm, figure=fig2)
+        fig2.tight_layout()
         
         fig4 = plt.figure(figsize=(6, 5))
         E_max, y_max, E = self.simulate_3D(30, figure=fig4)
@@ -506,10 +507,11 @@ class ECF(object):
         print 'y [M] = ' + ', '.join(map(logform, y_max.flat))
         print 'E [g] = ' + ', '.join(map(linform, E_max.flat))
         print 'total cost per flux [g] = %s' % linform(E_max.sum(0))
-        fig3 = plt.figure(figsize=(14, 3))
+        fig3 = plt.figure(figsize=(12, 4))
         fig3.suptitle(r'$max(v_0/\varepsilon)$ : $\varepsilon = %s$' % linform(E_max.sum(0)),
                       fontsize=12)
         self.simulate(E_max, figure=fig3)
+        fig3.tight_layout()
 
         pp = PdfPages(pdf_fname)
         pp.savefig(fig1)
