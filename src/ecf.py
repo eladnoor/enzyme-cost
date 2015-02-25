@@ -35,7 +35,7 @@ class NonSteadyStateSolutionError(Exception):
 
 class ECF(object):
     
-    def __init__(self, S, v, kcat, dG0, K_subs, K_prod,
+    def __init__(self, S, v, kcat, dG0, K_M,
                  V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
@@ -45,8 +45,7 @@ class ECF(object):
                 v       - steady-state fluxes [umol/min]
                 kcat    - specific activities [umol/min/mg]
                 dG0     - standard Gibbs free energies of reaction [kJ/mol]
-                K_subs  - Michaelis-Menten coefficients of reaction substrates [M]
-                K_prod  - Michaelis-Menten coefficients of reaction products [M]
+                K_M     - Michaelis-Menten coefficients [M]
                 
                 V       - cell volume [um^3]
                 c_range - allowed range for internal metabolite concentration [M]
@@ -57,20 +56,17 @@ class ECF(object):
         self.kcat = kcat
         self.dG0 = dG0
         
-        self.K_subs = K_subs
-        self.K_prod = K_prod
-        
         self.S_subs = abs(self.S)
         self.S_prod = abs(self.S)
-        self.S_subs[np.where(self.S > 0)] = 0
-        self.S_prod[np.where(self.S < 0)] = 0
+        self.S_subs[self.S > 0] = 0
+        self.S_prod[self.S < 0] = 0
         self.V = V
         self.y_range = map(np.log, c_range)
         self.y_fixed = np.log(c_fixed)
         
-        self.subs_denom = np.sum(np.multiply(self.S_subs, np.log(self.K_subs)), axis=0).T
-        self.prod_denom = np.sum(np.multiply(self.S_prod, np.log(self.K_prod)), axis=0).T
-        
+        self.subs_denom = np.matrix(np.diag(self.S_subs.T * np.log(K_M))).T
+        self.prod_denom = np.matrix(np.diag(self.S_prod.T * np.log(K_M))).T
+
         self.Nr = self.S.shape[1]
         self.Nc = self.S.shape[0]
         self.Nint = self.Nc - 2
@@ -126,10 +122,14 @@ class ECF(object):
         eta_kin = kin_subs/(1.0 + kin_subs + kin_prod)
         return eta_kin        
 
+    def eta_allosteric(self, lnC):
+        pass
+
     def ECF2(self, lnC):
         """
-            lnC - a matrix of metabolite log-concentrations, where the rows are metabolites in the same order
-                  as in S, and the columns are indices for different points in the metabolite polytope (i.e.
+            lnC - a matrix of metabolite log-concentrations, where the rows are 
+                  metabolites in the same order as in S, and the columns are 
+                  indices for different points in the metabolite polytope (i.e.
                   conditions).
         """
         ECF2 = np.multiply(self.ECF1(lnC), 1.0/self.eta_thermodynamic(lnC))
@@ -141,12 +141,19 @@ class ECF(object):
 
     def ECF3(self, lnC):
         """
-            lnC - a matrix of metabolite log-concentrations, where the rows are metabolites in the same order
-                  as in S, and the columns are indices for different points in the metabolite polytope (i.e.
-                  conditions).
+            lnC - a matrix of metabolite log-concentrations, where the rows 
+                  are metabolites in the same order as in S, and the columns
+                  are indices for different points in the metabolite polytope
+                  (i.e. conditions).
         """
         # calculate the product of all substrates and products for the kinetic term
         return np.multiply(self.ECF2(lnC), 1.0/self.eta_kinetic(lnC))
+
+    def ECF4(self, lnC):
+        """
+            Add a layer of allosteric activators/inibitors
+        """
+        return np.multiply(self.ECF3(lnC), 1.0/self.eta_allosteric(lnC))
 
     def generate_contour_data(self, n=300):
         rng = np.linspace(self.y_range[0], self.y_range[1], n)
