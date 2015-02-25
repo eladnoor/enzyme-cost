@@ -11,7 +11,8 @@ import types
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
-import matplotlib.ticker
+import matplotlib.ticker as ticker
+import matplotlib.font_manager as font_manager
 from scipy.optimize import minimize
 from scipy.integrate import ode
 from optimized_bottleneck_driving_force import Pathway
@@ -168,7 +169,7 @@ class ECF(object):
 
         fig, axarr = plt.subplots(1, self.Nr+1, figsize=((self.Nr+1)*3,4),
                                   sharey=True)
-        axarr[0].set_ylabel(r'$X_1$ [M]')
+        axarr[0].set_ylabel(r'$y_1$ [M]')
         for i, ax in enumerate(axarr):
             ax = axarr[i]
             ax.set_xscale('log')
@@ -180,17 +181,15 @@ class ECF(object):
                 tmp = np.array(np.reshape(E[i,:].T, X0.shape).T)
                 ax.set_title(r'$\varepsilon_%d$' % (i+1))
             ax.contourf(np.exp(X0), np.exp(X1), tmp,
-                        locator=matplotlib.ticker.LogLocator(), cmap=plt.cm.PuBu)
-            ax.set_xlabel(r'$X_0$ [M]')
+                        locator=ticker.LogLocator(), cmap=plt.cm.PuBu)
+            ax.set_xlabel(r'$y_0$ [M]')
         
-        plt.tight_layout(w_pad=0)
-
         y_min = self.ECM()
         ax.plot([y_min[0,0]], [y_min[1,0]], 'xr', label='ECM')
         
         y_mdf = self.MDF()
         ax.plot([y_mdf[0,0]], [y_mdf[1,0]], 'xy', label='MDF')
-        ax.legend()
+        ax.legend(loc='upper left')
 
     def plot_Y_slice(self, n=1000, Yvalue=None):
         fig = plt.figure(figsize=(6,6))
@@ -206,9 +205,9 @@ class ECF(object):
         ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
         ax.plot(lnC[1, :], data.T, '-', linewidth=2)
         ax.legend([r'$R_%d$' % (i+1) for i in xrange(3)] + ['Total'], loc='best')
-        ax.set_xlabel(r'[$X_0$]')
+        ax.set_xlabel(r'$y_0$')
         ax.set_ylabel(r'$\varepsilon$')
-        ax.set_title('[$X_1$] = %.e M' % Yvalue)
+        ax.set_title('$y_1$ = %.e M' % Yvalue)
         ax.set_ylim(ymax=1e2)
         fig.tight_layout()
 
@@ -230,7 +229,7 @@ class ECF(object):
         ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
         ax.plot(x, Etot, '-', linewidth=2)
         ax.legend(map(lambda i:'[B] = %.1e M' % i, y), loc='lower right')
-        ax.set_xlabel('[$X_0$]')
+        ax.set_xlabel('$y_0$')
         ax.set_ylabel('$\varepsilon$')
         ax.set_ylim(ymax=1e3)
         fig.tight_layout()
@@ -344,38 +343,43 @@ class ECF(object):
             V = np.vstack([V, v.T])
         
         if figure is not None:
-            ax1 = figure.add_subplot(1, 3, 1)
+            prop = font_manager.FontProperties(size=8)
+
+            ax1 = figure.add_axes([0.1, 0.2, 0.2, 0.6], frameon=True)
             ax1.set_yscale('log')
             ax1.plot(T, np.exp(Y))
             ax1.set_xlabel('time [min]')
             ax1.set_ylabel('concentration [M]')
             ax1.set_ylim(np.exp(self.y_range))
-            ax1.legend(map(lambda i: '$X_%d$'% i, xrange(self.Nint)), loc='best',
-                       frameon=False)
+            ax1.legend(map(lambda i: '$y_%d$'% i, xrange(self.Nint)), loc='best',
+                       frameon=False, prop=prop)
             
             X0, X1, E = self.generate_contour_data()
             Etot = np.sum(E, axis=0)
             Etot = np.array(np.reshape(Etot.T, X0.shape).T)
     
-            ax2 = figure.add_subplot(1, 3, 2)
+            ax2 = figure.add_axes([0.4, 0.2, 0.2, 0.6], frameon=True)
             ax2.plot(T, V)
             ax2.set_xlabel('time [min]')
             ax2.set_ylabel('flux [$\mu$mol/min]')
             ax2.legend(map(lambda i: '$v_%d$'% i, xrange(self.Nr)), loc='best',
-                       frameon=False)
+                       frameon=False, prop=prop)
     
-            ax3 = figure.add_subplot(1, 3, 3)
+            ax3 = figure.add_axes([0.7, 0.2, 0.2, 0.6], frameon=True)
             ax3.set_xscale('log')
             ax3.set_yscale('log')
             ax3.contourf(np.exp(X0), np.exp(X1), Etot,
-                         locator=matplotlib.ticker.LogLocator(),
+                         locator=ticker.LogLocator(),
                          cmap=plt.cm.PuBu)
-            ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5, color='r', label=r'$y(0)$')
-            ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=3, color='y', label=r'$y(t)$')
-            ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5, color='g', label=r'$y(\infty)$')
-            ax3.set_xlabel('$X_0$ [M]')
-            ax3.set_ylabel('$X_1$ [M]')
-            ax3.legend(loc='best', frameon=False, numpoints=1)
+            ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5,
+                     color='r', label=r'$y(0)$')
+            ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=3,
+                     color='y', label=r'$y(t)$')
+            ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5,
+                     color='g', label=r'$y(\infty)$')
+            ax3.set_xlabel('$y_0$ [M]')
+            ax3.set_ylabel('$y_1$ [M]')
+            ax3.legend(loc='upper left', frameon=False, numpoints=1, prop=prop)
         
         if r.t >= t1:
             return np.nan, np.nan
@@ -466,52 +470,36 @@ class ECF(object):
             ax3.set_ylim(-0.5, 2.5)
         
         return E_over_v_max, y_max, E
+    
+    @staticmethod
+    def _make_figure(s, y, E):
+        fig = plt.figure(figsize=(12, 4))
+        fig.suptitle(r'%s : $\varepsilon = (%s) \,\, \sum{\varepsilon} = %.2f \,\, y_{\infty} = (%s)$' % \
+                     (s,
+                     ','.join(map(lambda x : '%.2f' % x, E.flat)),
+                     E.sum(0),
+                     ','.join(map(lambda x : '%.1e' % np.exp(x), y.flat))
+                     ), fontsize=12)
+        return fig
         
     def generate_pdf_report(self, pdf_fname):
-        logform = lambda x:'%.2e' % np.exp(x)
-        linform = lambda x:'%.2e' % x
-
         y_mdf = self.MDF()
         E_mdf = self.ECF3(self.y_to_lnC(y_mdf))
 
         y_ecm = self.ECM()
         E_ecm = self.ECF3(self.y_to_lnC(y_ecm))
 
-        print '-' * 50
-        print 'Simulating the flux using the MDF solution:'
-        print 'y [M] = ' + ', '.join(map(logform, y_mdf.flat))
-        print 'E [g] = ' + ', '.join(map(linform, E_mdf.flat))
-        print 'total cost per flux [g] = %s' % linform(E_mdf.sum(0))
-        fig1 = plt.figure(figsize=(12, 4))
-        fig1.suptitle(r'MDF : $\varepsilon = %s$' % linform(E_mdf.sum(0)),
-                      fontsize=12)
+        fig1 = ECF._make_figure('MDF', y_mdf, E_mdf)
         self.simulate(E_mdf, figure=fig1)
-        fig1.tight_layout()
 
-        print '-' * 50
-        print 'Simulating the flux using the ECM solution:'
-        print 'y [M] = ' + ', '.join(map(logform, y_ecm.flat))
-        print 'E [g] = ' + ', '.join(map(linform, E_ecm.flat))
-        print 'total cost per flux [g] = %s' % linform(E_ecm.sum(0))
-        fig2 = plt.figure(figsize=(12, 4))
-        fig2.suptitle(r'ECM : $\varepsilon = %s$' % linform(E_ecm.sum(0)),
-                      fontsize=12)
+        fig2 = ECF._make_figure('ECM', y_ecm, E_ecm)
         self.simulate(E_ecm, figure=fig2)
-        fig2.tight_layout()
         
         fig4 = plt.figure(figsize=(6, 5))
         E_max, y_max, E = self.simulate_3D(30, figure=fig4)
         
-        print '-' * 50
-        print 'Calculating maximal flux by simulating kinetic system:'
-        print 'y [M] = ' + ', '.join(map(logform, y_max.flat))
-        print 'E [g] = ' + ', '.join(map(linform, E_max.flat))
-        print 'total cost per flux [g] = %s' % linform(E_max.sum(0))
-        fig3 = plt.figure(figsize=(12, 4))
-        fig3.suptitle(r'$max(v_0/\varepsilon)$ : $\varepsilon = %s$' % linform(E_max.sum(0)),
-                      fontsize=12)
+        fig3 = ECF._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', y_max, E_max)
         self.simulate(E_max, figure=fig3)
-        fig3.tight_layout()
 
         pp = PdfPages(pdf_fname)
         pp.savefig(fig1)
