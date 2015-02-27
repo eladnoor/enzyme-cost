@@ -35,8 +35,8 @@ class NonSteadyStateSolutionError(Exception):
 
 class ECF(object):
     
-    def __init__(self, S, v, kcat, dG0, K_M,
-                 V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4):
+    def __init__(self, S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh,
+                 V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4, ecf_version='ECF4'):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
             
@@ -56,6 +56,15 @@ class ECF(object):
         self.kcat = kcat
         self.dG0 = dG0
         
+        assert v.shape == (S.shape[1], 1)
+        assert kcat.shape == (S.shape[1], 1)
+        assert dG0.shape == (S.shape[1], 1)
+        assert S.shape == K_M.shape
+        assert S.shape == A_act.shape
+        assert S.shape == K_act.shape
+        assert S.shape == A_inh.shape
+        assert S.shape == K_inh.shape
+        
         self.S_subs = abs(self.S)
         self.S_prod = abs(self.S)
         self.S_subs[self.S > 0] = 0
@@ -67,6 +76,12 @@ class ECF(object):
         self.subs_denom = np.matrix(np.diag(self.S_subs.T * np.log(K_M))).T
         self.prod_denom = np.matrix(np.diag(self.S_prod.T * np.log(K_M))).T
 
+        # allosteric regulation term
+        self.A_act = A_act
+        self.A_inh = A_inh
+        self.act_denom = np.matrix(np.diag(self.A_act.T * np.log(K_act))).T
+        self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(K_inh))).T
+
         self.Nr = self.S.shape[1]
         self.Nc = self.S.shape[0]
         self.Nint = self.Nc - 2
@@ -76,6 +91,16 @@ class ECF(object):
             raise NonSteadyStateSolutionError('the provided flux "v" is not a '
             'steady-state solution of the provided stoichiometric model')
         
+        if ecf_version == 'ECF4':
+            self.ECF = self.ECF4
+        elif ecf_version == 'ECF3':
+            self.ECF = self.ECF3
+        elif ecf_version == 'ECF2':
+            self.ECF = self.ECF2
+        elif ecf_version == 'ECF1':
+            self.ECF = self.ECF1
+        else:
+            raise ValueError('The enzyme cost function %s is unknown' % ecf_version)
         
     def y_to_lnC(self, y):
         """
@@ -84,9 +109,21 @@ class ECF(object):
         """
         if y.shape == (self.Nint, ):
             y = np.matrix(y).T
-        assert y.shape == (self.Nint, 1)
+        assert y.shape[0] == self.Nint
 
-        return np.vstack([self.y_fixed, y, self.y_fixed])
+        return np.vstack([np.ones((1, y.shape[1])) * self.y_fixed,
+                          y,
+                          np.ones((1, y.shape[1])) * self.y_fixed])
+
+    def get_vmax(self, E):
+        """
+            calculate the maximal rate of each reaction, kcat is in umol/min/mg and 
+            E is in gr, so we multiply by 1000
+            
+            Returns:
+                Vmax  - in units of [umol/min]
+        """
+        return np.multiply(self.kcat, E) * 1e3 # umol/min
     
     def ECF1(self, lnC):
         """
@@ -123,7 +160,10 @@ class ECF(object):
         return eta_kin        
 
     def eta_allosteric(self, lnC):
-        pass
+        kin_act = np.exp(-self.A_act.T * lnC + np.tile(self.act_denom, (1, lnC.shape[1])))
+        kin_inh = np.exp(self.A_inh.T * lnC - np.tile(self.inh_denom, (1, lnC.shape[1])))
+        eta_kin = 1.0 / (1.0 + kin_act) / (1.0 + kin_inh)
+        return eta_kin
 
     def ECF2(self, lnC):
         """
@@ -155,6 +195,13 @@ class ECF(object):
         """
         return np.multiply(self.ECF3(lnC), 1.0/self.eta_allosteric(lnC))
 
+    def get_fluxes(self, lnC, E):
+        v = np.tile(self.get_vmax(E), (1, lnC.shape[1]))
+        v = np.multiply(v, self.eta_thermodynamic(lnC))
+        v = np.multiply(v, self.eta_kinetic(lnC))
+        v = np.multiply(v, self.eta_allosteric(lnC))
+        return v
+    
     def generate_contour_data(self, n=300):
         rng = np.linspace(self.y_range[0], self.y_range[1], n)
         X0, X1 = np.meshgrid(rng, rng)
@@ -163,7 +210,7 @@ class ECF(object):
         F = self.y_fixed * np.ones((C.shape[0], 1))
         lnC = np.hstack([F, C] + [F]*(self.Nc-3)).T
          
-        E = self.ECF3(lnC)
+        E = self.ECF(lnC)
 
         return X0, X1, E
         
@@ -198,6 +245,22 @@ class ECF(object):
         ax.plot([y_mdf[0,0]], [y_mdf[1,0]], 'xy', label='MDF')
         ax.legend(loc='upper left')
 
+    def plot_v_vs_y(self, E, n=50, y1=None):
+        fig = plt.figure(figsize=(6,6))
+        y1 = y1 or self.y_fixed
+        y = np.vstack([np.linspace(-6, -2, n)*np.log(10),
+                       np.ones((1, n))*y1])
+
+        v = self.get_fluxes(self.y_to_lnC(y), E)
+        
+        ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
+        for i in xrange(self.Nr):
+            ax.plot(np.exp(y[0, :]).flat, v[i, :].flat, linewidth=2,
+                    alpha=0.5, label=r'$v_%d$' % i)
+        ax.legend(loc='best')
+        ax.set_xlabel(r'$y_0$ [M]')
+        ax.set_ylabel(r'flux')
+
     def plot_Y_slice(self, n=1000, Yvalue=None):
         fig = plt.figure(figsize=(6,6))
         Yvalue = Yvalue or self.y_fixed
@@ -207,7 +270,7 @@ class ECF(object):
         lnC[2,:] = Yvalue
         
         #data = np.vstack([self.ECF1(lnC), self.ECF2(lnC), self.ECF3(lnC)])
-        data = self.ECF3(lnC)
+        data = self.ECF(lnC)
         data = np.vstack([data, data.sum(axis=0)])
         ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
         ax.plot(lnC[1, :], data.T, '-', linewidth=2)
@@ -229,7 +292,7 @@ class ECF(object):
         C[2,:] = Y.flat
         lnC = np.log(C)
         
-        E = self.ECF3(lnC)
+        E = self.ECF(lnC)
         Etot = np.sum(E, axis=0)
         Etot = np.array(np.reshape(Etot.T, X.shape).T)
 
@@ -244,7 +307,7 @@ class ECF(object):
     def ECM(self):
         
         def optfun(y):
-            e = self.ECF3(self.y_to_lnC(y)).sum(axis=0)[0,0]
+            e = self.ECF(self.y_to_lnC(y)).sum(axis=0)[0,0]
             #print lnx.T, e
             if np.isnan(e):
                 return 1e5
@@ -280,8 +343,8 @@ class ECF(object):
         lnC = self.y_to_lnC(y)
         df = self.driving_force(lnC)
         return (df > 0).all()
-    
-    def simulate(self, E, y0=None, eps=1e-5, figure=None):
+
+    def simulate(self, E, y0=None, t_max=10, dt=0.1, eps=1e-5, figure=None):
         """
             Find the steady-state solution for the metabolite concentrations
             given the enzyme abundances
@@ -307,21 +370,11 @@ class ECF(object):
         # normalize the total enzyme amount to 1000 mg
         #E *= (1000.0/E.sum(0))
 
-        def y_to_v(y):
-            lnC = self.y_to_lnC(y)
-            
-            # calculate the rate of each reaction, kcat is in umol/min/mg and 
-            # E is in gr, so we multiply by 1000
-            vmax = np.multiply(self.kcat, E) * 1000.0 # umol/min
-            v = np.multiply(np.multiply(vmax, self.eta_thermodynamic(lnC)), self.eta_kinetic(lnC))
-            return v
-        
         def f(t, y):
             # we only care about the time derivatives of the internal metabolites
             # (i.e. the first and last one are assumed to be fixed in time)
-            return self.S[1:-1,:] * y_to_v(y)
+            return self.S[1:-1,:] * self.get_fluxes(self.y_to_lnC(y), E)
         
-        t0 = 0; dt = 0.1; t1 = 1e2
         if y0 is None:
             y0 = np.ones((self.Nint, 1)) * self.y_fixed
         else:
@@ -330,27 +383,34 @@ class ECF(object):
         if not self.is_feasible(y0):
             raise ThermodynamicallyInfeasibleError(y0)
         
-        v = y_to_v(y0)
+        v = self.get_fluxes(self.y_to_lnC(y0), E)
 
-        T = np.array([t0])
+        T = np.array([0])
         Y = y0.T
         V = v.T
         
         r = ode(f)
-        r.set_initial_value(y0, t0)
+        r.set_initial_value(y0, 0)
         
         while r.successful() and \
-              r.t < t1 and \
-              (r.t < 10*dt or (np.abs(self.S[1:-1,:] * v) > eps).any()):
+              r.t < t_max and \
+              (r.t < 0.05*t_max or (np.abs(self.S[1:-1,:] * v) > eps).any()):
             r.integrate(r.t + dt)
-            v = y_to_v(r.y)
+            v = self.get_fluxes(self.y_to_lnC(r.y), E)
 
             T = np.hstack([T, r.t])
             Y = np.vstack([Y, r.y.T])
             V = np.vstack([V, v.T])
         
+        if r.t >= t_max:
+            v_inf = np.nan
+            y_inf = np.nan
+        else:
+            v_inf = V[-1, 0]
+            y_inf = Y[-1,:]
+
         if figure is not None:
-            prop = font_manager.FontProperties(size=8)
+            prop = font_manager.FontProperties(size=10)
 
             ax1 = figure.add_axes([0.1, 0.2, 0.2, 0.6], frameon=True)
             ax1.set_yscale('log')
@@ -369,6 +429,7 @@ class ECF(object):
             ax2.plot(T, V)
             ax2.set_xlabel('time [min]')
             ax2.set_ylabel('flux [$\mu$mol/min]')
+            ax2.set_yscale('log')
             ax2.legend(map(lambda i: '$v_%d$'% i, xrange(self.Nr)), loc='best',
                        frameon=False, prop=prop)
     
@@ -382,22 +443,26 @@ class ECF(object):
                      color='r', label=r'$y(0)$')
             ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=3,
                      color='y', label=r'$y(t)$')
-            ax3.plot(np.exp(Y[-1,0]), np.exp(Y[-1,1]), 'x', markersize=5,
-                     color='g', label=r'$y(\infty)$')
             ax3.set_xlabel('$y_0$ [M]')
             ax3.set_ylabel('$y_1$ [M]')
+
+            if np.isfinite(y_inf).all():
+                ytmp = list(np.exp(y_inf).flat)
+                ax3.plot(ytmp[0], ytmp[1], 'x', markersize=5,
+                         color='g', label=r'$y(\infty)$')
+                ax3.set_title(r'$y(\infty) = [%s]$' % 
+                              ','.join(map(lambda x : '%.1e' % np.exp(x), y_inf.flat)),
+                              fontsize=12)
             ax3.legend(loc='upper left', frameon=False, numpoints=1, prop=prop)
+
+        return v_inf, y_inf
         
-        if r.t >= t1:
-            return np.nan, np.nan
-        else:
-            return V[-1, 0], Y[-1, :]
-        
-    def simulate_3D(self, n=30, figure=None):
+    def simulate_3D(self, y0=None, n=30, figure=None):
         if self.Nr != 3:
             raise Exception('You can only use simulate_3D for models of 3 enzymes')
             
-        y0 = np.ones((self.Nint, 1)) * self.y_fixed
+        if y0 is None:
+            y0 = np.ones((self.Nint, 1)) * self.y_fixed
         if not self.is_feasible(y0):
             raise ThermodynamicallyInfeasibleError('initial point y0 = %s' % str(y0))
         
@@ -479,33 +544,31 @@ class ECF(object):
         return E_over_v_max, y_max, E
     
     @staticmethod
-    def _make_figure(s, y, E):
+    def _make_figure(s, E):
         fig = plt.figure(figsize=(12, 4))
-        fig.suptitle(r'%s : $\varepsilon = (%s) \,\, \sum{\varepsilon} = %.2f \,\, y_{\infty} = (%s)$' % \
+        fig.suptitle(r'%s, $\varepsilon$ = <%s>, $\varepsilon_{\rm tot}$ = %.2f [mg]' % \
                      (s,
-                     ','.join(map(lambda x : '%.2f' % x, E.flat)),
-                     E.sum(0),
-                     ','.join(map(lambda x : '%.1e' % np.exp(x), y.flat))
-                     ), fontsize=12)
+                     ','.join(map(lambda x : '%.1f' % (x*1e3), E.flat)),
+                     1e3*E.sum(0)), fontsize=10)
         return fig
         
     def generate_pdf_report(self, pdf_fname):
         y_mdf = self.MDF()
-        E_mdf = self.ECF3(self.y_to_lnC(y_mdf))
+        E_mdf = self.ECF(self.y_to_lnC(y_mdf))
 
         y_ecm = self.ECM()
-        E_ecm = self.ECF3(self.y_to_lnC(y_ecm))
+        E_ecm = self.ECF(self.y_to_lnC(y_ecm))
 
-        fig1 = ECF._make_figure('MDF', y_mdf, E_mdf)
+        fig1 = ECF._make_figure('MDF', E_mdf)
         self.simulate(E_mdf, figure=fig1)
 
-        fig2 = ECF._make_figure('ECM', y_ecm, E_ecm)
+        fig2 = ECF._make_figure('ECM', E_ecm)
         self.simulate(E_ecm, figure=fig2)
         
         fig4 = plt.figure(figsize=(6, 5))
         E_max, y_max, E = self.simulate_3D(30, figure=fig4)
         
-        fig3 = ECF._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', y_max, E_max)
+        fig3 = ECF._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', E_max)
         self.simulate(E_max, figure=fig3)
 
         pp = PdfPages(pdf_fname)
