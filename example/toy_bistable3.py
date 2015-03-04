@@ -4,10 +4,10 @@ Created on Thu Feb 26 15:01:27 2015
 
 @author: noore
 """
-
+import sys, os
+sys.path.append(os.path.expanduser('~/git/enzyme-cost/src'))
 from ecf import ECF, RT
 import numpy as np
-import sys
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
