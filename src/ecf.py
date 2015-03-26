@@ -46,6 +46,10 @@ class ECF(object):
                 kcat    - specific activities [umol/min/mg]
                 dG0     - standard Gibbs free energies of reaction [kJ/mol]
                 K_M     - Michaelis-Menten coefficients [M]
+                A_act   - Hill coefficient matrix of allosteric activators
+                A_inh   - Hill coefficient matrix of allosteric inhibitors
+                K_act   - affinity coefficient matrix of allosteric activators
+                K_inh   - affinity coefficient matrix of allosteric inhibitors
                 
                 V       - cell volume [um^3]
                 c_range - allowed range for internal metabolite concentration [M]
@@ -56,14 +60,14 @@ class ECF(object):
         self.kcat = kcat
         self.dG0 = dG0
         
-        assert v.shape == (S.shape[1], 1)
+        assert v.shape    == (S.shape[1], 1)
         assert kcat.shape == (S.shape[1], 1)
-        assert dG0.shape == (S.shape[1], 1)
-        assert S.shape == K_M.shape
-        assert S.shape == A_act.shape
-        assert S.shape == K_act.shape
-        assert S.shape == A_inh.shape
-        assert S.shape == K_inh.shape
+        assert dG0.shape  == (S.shape[1], 1)
+        assert S.shape    == K_M.shape
+        assert S.shape    == A_act.shape
+        assert S.shape    == K_act.shape
+        assert S.shape    == A_inh.shape
+        assert S.shape    == K_inh.shape
         
         self.S_subs = abs(self.S)
         self.S_prod = abs(self.S)
@@ -214,7 +218,7 @@ class ECF(object):
 
         return X0, X1, E
         
-    def plot_contour(self, n=300):
+    def plot_contour(self, n=300, y0=None):
         X0, X1, E = self.generate_contour_data(n)
 
         # calculate the total cost of all enzymes
@@ -235,15 +239,15 @@ class ECF(object):
                 tmp = np.array(np.reshape(E[i,:].T, X0.shape).T)
                 ax.set_title(r'$\varepsilon_%d$' % (i+1))
             ax.contourf(np.exp(X0), np.exp(X1), tmp,
-                        locator=ticker.LogLocator(), cmap=plt.cm.PuBu)
+                        locator=ticker.LogLocator(), cmap=plt.cm.autumn)
             ax.set_xlabel(r'$y_0$ [M]')
         
-        y_min = self.ECM()
-        ax.plot([y_min[0,0]], [y_min[1,0]], 'xr', label='ECM')
+        y_min = np.exp(self.ECM(y0))
+        ax.plot([y_min[0,0]], [y_min[1,0]], 'ob', label='ECM')
         
-        y_mdf = self.MDF()
-        ax.plot([y_mdf[0,0]], [y_mdf[1,0]], 'xy', label='MDF')
-        ax.legend(loc='upper left')
+        y_mdf = np.exp(self.MDF())
+        ax.plot([y_mdf[0,0]], [y_mdf[1,0]], 'oc', label='MDF')
+        ax.legend(loc='upper left', numpoints=1, framealpha=0.5)
 
     def plot_v_vs_y(self, E, n=50, y1=None):
         fig = plt.figure(figsize=(6,6))
@@ -304,7 +308,11 @@ class ECF(object):
         ax.set_ylim(ymax=1e3)
         fig.tight_layout()
 
-    def ECM(self):
+    def ECM(self, y0=None):
+        """
+            Use convex optimization to find the y with the minimal total
+            enzyme cost per flux, i.e. sum(ECF(y))
+        """
         
         def optfun(y):
             e = self.ECF(self.y_to_lnC(y)).sum(axis=0)[0,0]
@@ -317,7 +325,8 @@ class ECF(object):
         def constfun(y):
             return self.driving_force(self.y_to_lnC(y))
         
-        y0 = self.MDF()
+        if y0 is None:
+            y0 = self.MDF()
         bounds = self.y_range
 
         res = minimize(optfun, y0, bounds=[bounds]*self.Nint, method='TNC')
@@ -438,7 +447,7 @@ class ECF(object):
             ax3.set_yscale('log')
             ax3.contourf(np.exp(X0), np.exp(X1), Etot,
                          locator=ticker.LogLocator(),
-                         cmap=plt.cm.PuBu)
+                         cmap=plt.cm.autumn)
             ax3.plot(np.exp(Y[0,0]), np.exp(Y[0,1]), 'x', markersize=5,
                      color='r', label=r'$y(0)$')
             ax3.plot(np.exp(Y[:,0]), np.exp(Y[:,1]), '.', markersize=3,
@@ -450,14 +459,14 @@ class ECF(object):
                 ytmp = list(np.exp(y_inf).flat)
                 ax3.plot(ytmp[0], ytmp[1], 'x', markersize=5,
                          color='g', label=r'$y(\infty)$')
-                ax3.set_title(r'$y(\infty) = [%s]$' % 
-                              ','.join(map(lambda x : '%.1e' % np.exp(x), y_inf.flat)),
+                ax3.set_title(r'$y(\infty) = [%s]$, $v(\infty) = [%.1e]$' % 
+                              (','.join(map(lambda x : '%.1e' % np.exp(x), y_inf.flat)), v_inf),
                               fontsize=12)
             ax3.legend(loc='upper left', frameon=False, numpoints=1, prop=prop)
 
         return v_inf, y_inf
         
-    def simulate_3D(self, y0=None, n=30, figure=None):
+    def simulate_3D(self, y0=None, n=30, t_max=10, dt=0.1, eps=1e-5, figure=None):
         if self.Nr != 3:
             raise Exception('You can only use simulate_3D for models of 3 enzymes')
             
@@ -495,10 +504,12 @@ class ECF(object):
         print 'Simulating dynamic system for multiple enzyme concentrations ...'
         for i in xrange(E.shape[1]):
             sys.stderr.write('%d%%\r' % (i * 100.0 / E.shape[1]))
-            if (E[:, i] <= 0).any():
-                V.append(0)
+            if (E[:, i] <= 1e-10).any():
+                # if one of the enzyme leves is essentially 0, don't compute anything
+                # since it will not converge anyway
+                V.append(np.nan)
                 continue
-            v, _ = self.simulate(np.abs(E[:, i:i+1]), y0, eps=1e-3)
+            v, _ = self.simulate(np.abs(E[:, i:i+1]), y0=y0, t_max=t_max, dt=dt, eps=eps)
             
             # normalize the flux by the total amount of the enzyme
             # since we are maximizing the flux per enzyme
@@ -510,7 +521,7 @@ class ECF(object):
         i_max = np.nanargmax(V)
         
         E_max = E[:, i_max:i_max+1]
-        v_max, y_max = self.simulate(E_max, y0)
+        v_max, y_max = self.simulate(E_max, y0=y0, t_max=t_max, dt=dt, eps=eps)
         E_over_v_max = E_max * (self.v[0, 0] / v_max) # rescale E to match the enzyme cost per flux self.v
         
         if figure is not None:
@@ -524,7 +535,7 @@ class ECF(object):
             x = X[0, :].reshape((n+3, n+3))
             y = X[1, :].reshape((n+3, n+3))
             mappable = ax3.contourf(x, y, V,
-                                   cmap=plt.cm.PuBu)
+                                   cmap=plt.cm.autumn)
             plt.colorbar(mappable, ax=ax3)
             
             ## mark the maximal steady-state flux point
@@ -542,7 +553,44 @@ class ECF(object):
             ax3.set_ylim(-0.5, 2.5)
         
         return E_over_v_max, y_max, E
-    
+
+    def simulate_convex(self, E0, E1, y0=None,
+                        n=100, t_max=10, dt=0.1, eps=1e-5, figure=None):
+        """
+            Demonstrate the convexity (or non-convexity) of the flux per enzyme.
+            
+            Draw a plot of v/sum(E) of a given trajectory in the enzyme space,
+            where the initial concentrations are fixed (y0). The x-axis is
+            the alpha factor.
+        """
+        if y0 is None:
+            y0 = np.ones((self.Nint, 1)) * self.y_fixed
+        if not self.is_feasible(y0):
+            raise ThermodynamicallyInfeasibleError('initial point y0 = %s' % str(y0))
+        
+        alpha = np.linspace(0.0, 1.0, n)
+        V = np.zeros(n)
+        
+        for i in xrange(n):
+            E = E0*(1-alpha[i]) + E1*alpha[i]
+            v, _ = self.simulate(E, y0=y0, t_max=t_max, dt=dt, eps=eps)
+            # normalize the flux by the total amount of the enzyme
+            # since we are maximizing the flux per enzyme
+            V[i] = v / float(E.sum(0))
+
+        if np.isnan(V).all():
+            raise Exception('None of the simulations converged')
+
+        if figure is not None:
+            ax = figure.add_subplot(1, 1, 1, yscale='log')
+            ax.plot(alpha, V, 'r-')
+            ax.set_title(r'$v / \varepsilon$ [umol/min/g]')
+            
+            e0_str = ','.join(map(lambda x : '%.1f' % (x*1e3), E0.flat))
+            e1_str = ','.join(map(lambda x : '%.1f' % (x*1e3), E1.flat))
+            ax.set_xlabel(r'$\alpha$, where $\varepsilon$ = [1-$\alpha$] <%s> + $\alpha$ <%s>' % (e0_str, e1_str))
+            ax.set_ylabel(r'$v/\varepsilon$')
+
     @staticmethod
     def _make_figure(s, E):
         fig = plt.figure(figsize=(12, 4))
@@ -566,7 +614,7 @@ class ECF(object):
         self.simulate(E_ecm, figure=fig2)
         
         fig4 = plt.figure(figsize=(6, 5))
-        E_max, y_max, E = self.simulate_3D(30, figure=fig4)
+        E_max, y_max, E = self.simulate_3D(n=30, figure=fig4)
         
         fig3 = ECF._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', E_max)
         self.simulate(E_max, figure=fig3)

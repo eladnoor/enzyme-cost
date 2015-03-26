@@ -39,5 +39,11 @@ K_M        = np.matrix(np.ones(S.shape))
 K_M[S < 0] = 9e-2
 K_M[S > 0] = 1e-2
 
-toy_ecf = ECF(S, v, kcat, dG0_r, K_M)
+A_act      = np.matrix(np.zeros(S.shape))
+A_inh      = np.matrix(np.zeros(S.shape))
+K_act      = np.matrix(np.ones(S.shape))
+K_inh      = np.matrix(np.ones(S.shape))
+
+
+toy_ecf = ECF(S, v, kcat, dG0_r, K_M, A_act, A_inh, K_act, K_inh)
 toy_ecf.generate_pdf_report('../res/aldolase.pdf')
