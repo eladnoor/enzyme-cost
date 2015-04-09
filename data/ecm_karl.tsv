@@ -156,16 +156,16 @@ catalytic rate constant geometric mean	147			SCS_R00405	R00405	1/s
 catalytic rate constant geometric mean	199			SDH_R02164	R02164	1/s													
 catalytic rate constant geometric mean	290			FUM_R01082	R01082	1/s													
 catalytic rate constant geometric mean	200			MDH_R00342	R00342	1/s													
-catalytic rate constant geometric mean	200			EDD_R02036	R02036														
-catalytic rate constant geometric mean	200			EDA_R05605	R05605														
-catalytic rate constant geometric mean	200			MAEA_R00214	R00214														
-catalytic rate constant geometric mean	200			PCK_R00341	R00341														
-catalytic rate constant geometric mean	200			PPC_R00345	R00345														
-catalytic rate constant geometric mean	200			ACEA_R00479	R00479														
-catalytic rate constant geometric mean	200			ACEB_R00472	R00472														
-catalytic rate constant geometric mean	200			PTA_R00230	R00230														
-catalytic rate constant geometric mean	200			ACKA_R00315	R00315														
-catalytic rate constant geometric mean	200			STH_R00112	R00112														
+catalytic rate constant geometric mean	200			EDD_R02036	R02036	1/s													
+catalytic rate constant geometric mean	200			EDA_R05605	R05605	1/s													
+catalytic rate constant geometric mean	200			MAEA_R00214	R00214	1/s													
+catalytic rate constant geometric mean	200			PCK_R00341	R00341	1/s													
+catalytic rate constant geometric mean	200			PPC_R00345	R00345	1/s													
+catalytic rate constant geometric mean	200			ACEA_R00479	R00479	1/s													
+catalytic rate constant geometric mean	200			ACEB_R00472	R00472	1/s													
+catalytic rate constant geometric mean	200			PTA_R00230	R00230	1/s													
+catalytic rate constant geometric mean	200			ACKA_R00315	R00315	1/s													
+catalytic rate constant geometric mean	200			STH_R00112	R00112	1/s													
 Michaelis constant	0.33	_S__Malate	C00149	FUM_R01082	R01082	mM													
 Michaelis constant	2.67	_S__Malate	C00149	MDH_R00342	R00342	mM													
 Michaelis constant	0.0691	Acetyl_CoA	C00024	PDH_R00209	R00209	mM													
@@ -343,16 +343,16 @@ substrate catalytic rate constant	288			SCS_R00405	R00405	1/s
 substrate catalytic rate constant	245			SDH_R02164	R02164	1/s													
 substrate catalytic rate constant	509			FUM_R01082	R01082	1/s													
 substrate catalytic rate constant	52.2			MDH_R00342	R00342	1/s													
-substrate catalytic rate constant	200			EDD_R02036	R02036														
-substrate catalytic rate constant	200			EDA_R05605	R05605														
-substrate catalytic rate constant	200			MAEA_R00214	R00214														
-substrate catalytic rate constant	200			PCK_R00341	R00341														
-substrate catalytic rate constant	200			PPC_R00345	R00345														
-substrate catalytic rate constant	200			ACEA_R00479	R00479														
-substrate catalytic rate constant	200			ACEB_R00472	R00472														
-substrate catalytic rate constant	200			PTA_R00230	R00230														
-substrate catalytic rate constant	200			ACKA_R00315	R00315														
-substrate catalytic rate constant	200			STH_R00112	R00112														
+substrate catalytic rate constant	200			EDD_R02036	R02036	1/s													
+substrate catalytic rate constant	200			EDA_R05605	R05605	1/s													
+substrate catalytic rate constant	200			MAEA_R00214	R00214	1/s													
+substrate catalytic rate constant	200			PCK_R00341	R00341	1/s													
+substrate catalytic rate constant	200			PPC_R00345	R00345	1/s													
+substrate catalytic rate constant	200			ACEA_R00479	R00479	1/s													
+substrate catalytic rate constant	200			ACEB_R00472	R00472	1/s													
+substrate catalytic rate constant	200			PTA_R00230	R00230	1/s													
+substrate catalytic rate constant	200			ACKA_R00315	R00315	1/s													
+substrate catalytic rate constant	200			STH_R00112	R00112	1/s													
 product catalytic rate constant	324			PTS_RPTSsy	RPTSsy	1/s													
 product catalytic rate constant	353			PGI_R02740	R02740	1/s													
 product catalytic rate constant	334			PFK_R04779	R04779	1/s													
@@ -382,16 +382,16 @@ product catalytic rate constant	75.2			SCS_R00405	R00405	1/s
 product catalytic rate constant	161			SDH_R02164	R02164	1/s													
 product catalytic rate constant	166			FUM_R01082	R01082	1/s													
 product catalytic rate constant	767			MDH_R00342	R00342	1/s													
-product catalytic rate constant	200			EDD_R02036	R02036														
-product catalytic rate constant	200			EDA_R05605	R05605														
-product catalytic rate constant	200			MAEA_R00214	R00214														
-product catalytic rate constant	200			PCK_R00341	R00341														
-product catalytic rate constant	200			PPC_R00345	R00345														
-product catalytic rate constant	200			ACEA_R00479	R00479														
-product catalytic rate constant	200			ACEB_R00472	R00472														
-product catalytic rate constant	200			PTA_R00230	R00230														
-product catalytic rate constant	200			ACKA_R00315	R00315														
-product catalytic rate constant	200			STH_R00112	R00112														
+product catalytic rate constant	200			EDD_R02036	R02036	1/s													
+product catalytic rate constant	200			EDA_R05605	R05605	1/s													
+product catalytic rate constant	200			MAEA_R00214	R00214	1/s													
+product catalytic rate constant	200			PCK_R00341	R00341	1/s													
+product catalytic rate constant	200			PPC_R00345	R00345	1/s													
+product catalytic rate constant	200			ACEA_R00479	R00479	1/s													
+product catalytic rate constant	200			ACEB_R00472	R00472	1/s													
+product catalytic rate constant	200			PTA_R00230	R00230	1/s													
+product catalytic rate constant	200			ACKA_R00315	R00315	1/s													
+product catalytic rate constant	200			STH_R00112	R00112	1/s													
 !!SBtab TableName='ConcentrationConstraint' TableType='Quantity' Unit='mM'																			
 !QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration:Min	!Concentration:Max															
 concentration	_S__Malate	C00149	0.001	10															
