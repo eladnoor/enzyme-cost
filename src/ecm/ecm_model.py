@@ -11,9 +11,9 @@ from tablibIO import loadTSV
 from component_contribution.kegg_reaction import KeggReaction
 from component_contribution.kegg_model import KeggModel
 from component_contribution.component_contribution import ComponentContribution
-from component_contribution.thermodynamic_constants import default_RT as RT
 import re
 import numpy as np
+from component_contribution.thermodynamic_constants import default_RT as RT
 
 class ECMmodel(object):
     
@@ -25,13 +25,16 @@ class ECMmodel(object):
         cc = ComponentContribution.init()
         self.kegg_model.add_thermo(cc)
         
-        self.rid2dG0 = dict(zip(self.kegg_model.rids, self.kegg_model.dG0.flat))
+        dG0_prime, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
+        self.rid2dG0_cc = dict(zip(self.kegg_model.rids, dG0_prime.flat))
         
         rid2keq, rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2MM = \
             ECMmodel.ReadKineticParameters(self._sbtab_dict)
-            
-        for rid in self.kegg_model.rids:
-            print rid, self.rid2dG0[rid], -np.log(rid2keq[rid]/RT)
+        
+        self.rid2dG0_rate_constant_table = {rid: -RT*np.log(keq) for (rid, keq) in rid2keq.iteritems()}
+        
+        tmp = self._sbtab_dict.GetDictFromTable('GibbsEnergyOfReaction', 'Reaction', 'dG0')
+        self.rid2dG0_gibbs_energy_table = {rid: float(dG0) for (rid, dG0) in tmp.iteritems()}
 
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
