@@ -408,7 +408,7 @@ concentration	NADplus	C00003	1	1
 concentration	ATP	C00002	5	5															
 concentration	H2O	C00001	1	1															
 concentration	_2_Oxoglutarate	C00026	0.001	10															
-concentration	Oxaloacetate	C00036	0.001	10															
+concentration	Oxaloacetate	C00036	0.000001	10															
 concentration	Ubiquinone	C00399	0.1	0.1															
 concentration	D_Erythrose_4_phosphate	C00279	0.001	10															
 concentration	Ubiquinol	C00390	0.1	0.1															
@@ -470,16 +470,16 @@ flux	SCS_R00405	R00405	2.6	2.6	3	2.7	6	4.2	3.5	2.5	2	3.5	2.8	3.3	2.8	2.4	2.1	2.2
 flux	SDH_R02164	R02164	2.6	2.6	3	2.7	6	4.2	3.5	2.5	2	3.5	2.8	3.3	2.8	2.4	2.1	2.2	1.7
 flux	FUM_R01082	R01082	2.6	2.6	3	2.7	6	4.2	3.5	2.5	2	3.5	2.8	3.3	2.8	2.4	2.1	2.2	1.7
 flux	MDH_R00342	R00342	2.6	2.6	3	2.7	6	4.2	3.5	2.5	2	3.5	2.8	3.3	2.8	2.4	2.1	2.2	1.7
-flux	EDD_R02036	R02036	0	0.5	0.2	0.4	0.1	0.2	0.1	0.1	0.3	0.9	0.8	0.2	0.2	0.1	0.4	0.1	0.2
-flux	EDA_R05605	R05605	0	0.5	0.2	0.4	0.1	0.2	0.1	0.1	0.3	0.9	0.8	0.2	0.2	0.1	0.4	0.1	0.2
+flux	EDD_R02036	R02036	0.5	0.5	0.2	0.4	0.1	0.2	0.1	0.1	0.3	0.9	0.8	0.2	0.2	0.1	0.4	0.1	0.2
+flux	EDA_R05605	R05605	0.5	0.5	0.2	0.4	0.1	0.2	0.1	0.1	0.3	0.9	0.8	0.2	0.2	0.1	0.4	0.1	0.2
 flux	MAEA_R00214	R00214	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
-flux	PCK_R00341	R00341	0	0.8	1	0.8	2.6	1.2	0.9	0.8	0.8	2	1.7	0.9	1.4	1.6	1	1.3	0.5
-flux	PPC_R00345	R00345	0	3.7	3.8	3.5	4.9	3.2	2.6	2.3	2.2	4.8	4.4	3.6	3.7	3.9	3.5	3.8	2.8
+flux	PCK_R00341	R00341	0.8	0.8	1	0.8	2.6	1.2	0.9	0.8	0.8	2	1.7	0.9	1.4	1.6	1	1.3	0.5
+flux	PPC_R00345	R00345	3.7	3.7	3.8	3.5	4.9	3.2	2.6	2.3	2.2	4.8	4.4	3.6	3.7	3.9	3.5	3.8	2.8
 flux	ACEA_R00479	R00479	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
 flux	ACEB_R00472	R00472	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
-flux	PTA_R00230	R00230	0	10.5	9.1	7.3	1.6	0	0	0	0	8.2	7.3	8.3	5.2	3.9	3.6	3.1	2.5
-flux	ACKA_R00315	R00315	0	10.5	9.1	7.3	1.6	0	0	0	0	8.2	7.3	8.3	5.2	3.9	3.6	3.1	2.5
-flux	STH_R00112	R00112	0	5.2	5.4	5.4	1.3	2	1.8	1.6	1.8	4.2	4.9	5.7	4.1	2.9	2	0.1	0
+flux	PTA_R00230	R00230	10.5	10.5	9.1	7.3	1.6	0	0	0	0	8.2	7.3	8.3	5.2	3.9	3.6	3.1	2.5
+flux	ACKA_R00315	R00315	10.5	10.5	9.1	7.3	1.6	0	0	0	0	8.2	7.3	8.3	5.2	3.9	3.6	3.1	2.5
+flux	STH_R00112	R00112	5.2	5.2	5.4	5.4	1.3	2	1.8	1.6	1.8	4.2	4.9	5.7	4.1	2.9	2	0.1	0
 !!SBtab TableName='GibbsEnergyOfFormation' TableType='Quantity' Unit='kJ/mol' StandardConcentration='1mM'																			
 !QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!G0																
 standard Gibbs energy of formation	_S__Malate	C00149	-762																

@@ -5,7 +5,7 @@ Created on Thu Feb 26 15:01:27 2015
 @author: noore
 """
 
-from ecf import ECF
+from ecm.ecf import EnzymeCostFunction
 import numpy as np
 
 import os
@@ -36,7 +36,7 @@ K_act[1, 2] = 1e-2
 A_inh    = np.matrix(np.zeros(S.shape)) 
 K_inh    = np.matrix(np.ones(S.shape)) 
 
-ecf = ECF(S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh)
+ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh)
 
 E = np.matrix([1e-3, 1e-3, 1e-3]).T # [g]
 
@@ -46,7 +46,7 @@ Y = [[3e-6, 2e-6], [3e-5, 2e-5], [3e-4, 2e-4], [3e-3, 2e-3],
 for i in xrange(len(Y)):
     y0 = np.log(np.matrix(Y[i])).T
     y_str = ','.join(map(lambda x : '%.1e' % x, Y[i]))
-    fig = ECF._make_figure('ECM : $y_0$ = <%s> [M]' % y_str, E)
+    fig = EnzymeCostFunction._make_figure('ECM : $y_0$ = <%s> [M]' % y_str, E)
     ecf.simulate(E, y0=y0, figure=fig, eps=1e-2, dt=0.01, t_max=10)
 
 #ecf.generate_pdf_report('../res/bistable.pdf')

@@ -89,7 +89,7 @@ class Pathway(object):
         objective = pulp.lpSum([c[i] * x[i] for i in xrange(A.shape[1])])
         lp.setObjective(objective)
         
-        #lp.writeLP("../res/obe_primal.lp")
+        #lp.writeLP("res/obe_primal.lp")
         
         return lp, x
 
@@ -135,7 +135,7 @@ class Pathway(object):
         objective = pulp.lpSum([b[i] * y[i] for i in xrange(A.shape[0])])
         lp.setObjective(objective)
         
-        #lp.writeLP("../res/obe_dual.lp")
+        #lp.writeLP("res/obe_dual.lp")
         
         return lp, w, z, u
 
@@ -162,7 +162,7 @@ class Pathway(object):
 
         lp.setObjective(total_g)
         
-        #lp.writeLP("../res/total_g.lp")
+        #lp.writeLP("res/total_g.lp")
         
         return lp, total_g
         
@@ -176,7 +176,7 @@ class Pathway(object):
                 parameters and the resulting MDF value
         """
         lp_primal, x = self._MakeOBEProblem()
-        lp_primal.writeLP('../res/mdf.lp')
+        #lp_primal.writeLP('res/mdf.lp')
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")

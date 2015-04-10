@@ -6,6 +6,7 @@ Created on Wed Feb 18 15:40:11 2015
 """
 
 import itertools
+import logging
 import sys
 import types
 import numpy as np
@@ -15,7 +16,7 @@ import matplotlib.ticker as ticker
 import matplotlib.font_manager as font_manager
 from scipy.optimize import minimize
 from scipy.integrate import ode
-from optimized_bottleneck_driving_force import Pathway
+from ecm.optimized_bottleneck_driving_force import Pathway
 
 RT = 8.31e-3 * 298.15
 
@@ -33,10 +34,11 @@ class ThermodynamicallyInfeasibleError(Exception):
 class NonSteadyStateSolutionError(Exception):
     pass
 
-class ECF(object):
+class EnzymeCostFunction(object):
     
-    def __init__(self, S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh,
-                 V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4, ecf_version='ECF4'):
+    def __init__(self, S, v, kcat, dG0, K_M, A_act=None, A_inh=None, K_act=None, K_inh=None,
+                 V=1.0, c_range=(1e-6, 1e-2), c_fixed=1e-4, 
+                 verify_steady_state=True, ecf_version='ECF4'):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
             
@@ -55,19 +57,16 @@ class ECF(object):
                 c_range - allowed range for internal metabolite concentration [M]
                 c_fixed - concentration of external metabolites [M]
         """
+        self.Nc, self.Nr = S.shape
         self.S = S
         self.v = v
         self.kcat = kcat
         self.dG0 = dG0
         
-        assert v.shape    == (S.shape[1], 1)
-        assert kcat.shape == (S.shape[1], 1)
-        assert dG0.shape  == (S.shape[1], 1)
+        assert v.shape    == (self.Nr, 1)
+        assert kcat.shape == (self.Nr, 1)
+        assert dG0.shape  == (self.Nr, 1)
         assert S.shape    == K_M.shape
-        assert S.shape    == A_act.shape
-        assert S.shape    == K_act.shape
-        assert S.shape    == A_inh.shape
-        assert S.shape    == K_inh.shape
         
         self.S_subs = abs(self.S)
         self.S_prod = abs(self.S)
@@ -83,27 +82,35 @@ class ECF(object):
         # allosteric regulation term
         self.A_act = A_act
         self.A_inh = A_inh
-        self.act_denom = np.matrix(np.diag(self.A_act.T * np.log(K_act))).T
-        self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(K_inh))).T
 
-        self.Nr = self.S.shape[1]
-        self.Nc = self.S.shape[0]
+        if A_act is None or K_act is None:
+            self.act_denom = np.matrix(np.zeros((self.Nr, 1)))
+            self.A_act = np.matrix(np.zeros(S.shape))
+        else:
+            assert S.shape == A_act.shape
+            assert S.shape == K_act.shape
+            self.act_denom = np.matrix(np.diag(self.A_act.T * np.log(K_act))).T
+            self.A_act = A_act
+
+        if A_inh is None or K_inh is None:
+            self.inh_denom = np.matrix(np.zeros((self.Nr, 1)))
+            self.A_inh = np.matrix(np.zeros(S.shape))
+        else:
+            assert S.shape == A_inh.shape
+            assert S.shape == K_inh.shape
+            self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(K_inh))).T
+            self.A_inh = A_inh
+
         self.Nint = self.Nc - 2
         
         # check that v is a possible steady-state flux solution
-        if (np.abs(self.S[1:-1,:] * v) > 1e-6).any():
+        if verify_steady_state and (np.abs(self.S[1:-1,:] * v) > 1e-6).any():
             raise NonSteadyStateSolutionError('the provided flux "v" is not a '
             'steady-state solution of the provided stoichiometric model')
-        
-        if ecf_version == 'ECF4':
-            self.ECF = self.ECF4
-        elif ecf_version == 'ECF3':
-            self.ECF = self.ECF3
-        elif ecf_version == 'ECF2':
-            self.ECF = self.ECF2
-        elif ecf_version == 'ECF1':
-            self.ECF = self.ECF1
-        else:
+
+        try:        
+            self.ECF = eval('self.' + ecf_version)
+        except AttributeError:
             raise ValueError('The enzyme cost function %s is unknown' % ecf_version)
         
     def y_to_lnC(self, y):
@@ -345,6 +352,7 @@ class ECF(object):
         p = Pathway(self.S, self.v, self.dG0/RT, y_bounds[:, 0], y_bounds[:, 1])
         mdf, params = p.FindMDF()
         if np.isnan(mdf) or mdf < 0.0:
+            logging.error('Negative MDF value: %.1f' % mdf)
             raise ThermodynamicallyInfeasibleError()
         return np.log(params['concentrations'][1:-1, 0])
     
@@ -517,7 +525,8 @@ class ECF(object):
         print '[DONE]'
         V = np.array(V)
         if np.isnan(V).all():
-            raise Exception('None of the simulations converged')
+            raise Exception('None of the simulations converged. '
+                            'Try to increase t_max, or the k_cat values in the model.')
         i_max = np.nanargmax(V)
         
         E_max = E[:, i_max:i_max+1]
@@ -607,16 +616,16 @@ class ECF(object):
         y_ecm = self.ECM()
         E_ecm = self.ECF(self.y_to_lnC(y_ecm))
 
-        fig1 = ECF._make_figure('MDF', E_mdf)
+        fig1 = EnzymeCostFunction._make_figure('MDF', E_mdf)
         self.simulate(E_mdf, figure=fig1)
 
-        fig2 = ECF._make_figure('ECM', E_ecm)
+        fig2 = EnzymeCostFunction._make_figure('ECM', E_ecm)
         self.simulate(E_ecm, figure=fig2)
         
         fig4 = plt.figure(figsize=(6, 5))
         E_max, y_max, E = self.simulate_3D(n=30, figure=fig4)
         
-        fig3 = ECF._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', E_max)
+        fig3 = EnzymeCostFunction._make_figure(r'$\max\left(v / \sum{\varepsilon}\right)$', E_max)
         self.simulate(E_max, figure=fig3)
 
         pp = PdfPages(pdf_fname)

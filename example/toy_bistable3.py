@@ -4,14 +4,12 @@ Created on Thu Feb 26 15:01:27 2015
 
 @author: noore
 """
-import sys, os
-sys.path.append(os.path.expanduser('~/git/enzyme-cost/src'))
-from ecf import ECF, RT
+import os
+from ecm.ecf import EnzymeCostFunction
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-import os
 if not os.path.exists('../res'):
     os.mkdir('../res')
 
@@ -69,7 +67,7 @@ v = np.matrix(v).T
 kcat = np.matrix(kcat).T
 dG0 = np.matrix(dG0).T
 
-ecf = ECF(S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh)
+ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh)
 
 E = np.matrix([0.82, 0.14, 0.05]).T # [g]
 y0_low = np.matrix([np.log(1.2e-5), np.log(1.2e-5)]).T
@@ -108,7 +106,7 @@ for i in xrange(E.shape[1]):
     figs.append(fig)
 
     y_str = ','.join(map(lambda x : '%.1e' % np.exp(x), y0.flat))
-    fig = ECF._make_figure('ECM : $y_0$ = <%s> [M]' % y_str, E[:,i:i+1])
+    fig = EnzymeCostFunction._make_figure('ECM : $y_0$ = <%s> [M]' % y_str, E[:,i:i+1])
     ecf.simulate(E[:,i:i+1], y0=y0, figure=fig, eps=1e-2, dt=0.1, t_max=3000)
     figs.append(fig)
 

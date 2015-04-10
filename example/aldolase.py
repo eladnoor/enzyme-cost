@@ -11,7 +11,8 @@ Description:
 """
 
 import numpy as np
-from ecf import ECF, RT
+from ecm.ecf import EnzymeCostFunction
+from component_contribution.thermodynamic_constants import default_RT as RT
 
 import os
 if not os.path.exists('../res'):
@@ -45,5 +46,5 @@ K_act      = np.matrix(np.ones(S.shape))
 K_inh      = np.matrix(np.ones(S.shape))
 
 
-toy_ecf = ECF(S, v, kcat, dG0_r, K_M, A_act, A_inh, K_act, K_inh)
+toy_ecf = EnzymeCostFunction(S, v, kcat, dG0_r, K_M, A_act, A_inh, K_act, K_inh)
 toy_ecf.generate_pdf_report('../res/aldolase.pdf')
