@@ -10,12 +10,9 @@ Description:
     
 """
 
-from ecm.ecf import EnzymeCostFunction
+from ecm.cost_function import EnzymeCostFunction
+import ecm.ecf  
 import numpy as np
-
-import os
-if not os.path.exists('res'):
-    os.mkdir('res')
 
 N = 2
 
@@ -27,9 +24,19 @@ v        = np.matrix(np.ones((N + 1, 1)))
 kcat     = np.matrix(np.ones((N + 1, 1))) * 100
 dG0      = -5.0 * np.matrix(np.ones((N + 1, 1)))
 K_M      = np.matrix(np.ones(S.shape))
-K_M[S < 0] = 9e-2
+K_M[S < 0] = 3e-2
 K_M[S > 0] = 1e-2
 
-ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, ecf_version='ECF2')
 
-ecf.generate_pdf_report('res/toy.pdf')
+ecf1 = ecm.ecf.EnzymeCostFunction(S, v, kcat, dG0, K_M, ecf_version='ECF4')
+print ecf1.MDF().T
+print ecf1.ECM().T
+
+lnC_bounds = np.matrix(np.ones((S.shape[0], 2))) * np.log(1e-4)
+lnC_bounds[1:-1, 0] = np.log(1e-6)
+lnC_bounds[1:-1, 1] = np.log(1e-2)
+
+ecf2 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds, ecf_version='ECF4')
+print ecf2.MDF().T
+print ecf2.ECM().T
+

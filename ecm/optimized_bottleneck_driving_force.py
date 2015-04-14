@@ -23,7 +23,7 @@ class Pathway(object):
         self.fluxes = fluxes
         self.dG0 = dG0
         self.lnC_bounds = lnC_bounds
-
+        
     def _MakeDrivingForceConstraints(self):
         """
             Generates the A matrix and b & c vectors that can be used in a 
@@ -32,12 +32,17 @@ class Pathway(object):
                 subject to   Ax >= b
                              x >= 0
         """
-        I_dir = np.matrix(np.diag([np.sign(x) for x in self.fluxes.flat]))
-       
-        A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
+        # we need to take special care for reactions whose flux is 0.
+        # since we don't want them to constrain the MDF to be 0.
+
+        flux_sign = map(np.sign, self.fluxes.flat)
+        active_fluxes = np.abs(np.matrix(flux_sign)).T
+        I_dir = np.matrix(np.diag(flux_sign))
+        
+        A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, active_fluxes]),
                                  np.hstack([np.eye(self.Nc),  np.zeros((self.Nc, 1))]),
                                  np.hstack([-np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
-        b = np.matrix(np.vstack([-(I_dir * self.dG0) /RT,
+        b = np.matrix(np.vstack([-(I_dir * self.dG0) / RT,
                                   self.lnC_bounds[:, 1:],
                                  -self.lnC_bounds[:, :1]]))
         c = np.matrix(np.vstack([np.zeros((self.Nc, 1)),
@@ -76,7 +81,7 @@ class Pathway(object):
         objective = pulp.lpSum([c[i] * lnC[i] for i in xrange(A.shape[1])])
         lp.setObjective(objective)
         
-        lp.writeLP("res/MDF_primal.lp")
+        #lp.writeLP("res/MDF_primal.lp")
         
         return lp, lnC
 

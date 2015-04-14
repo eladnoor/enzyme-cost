@@ -15,6 +15,8 @@ import re
 import numpy as np
 from component_contribution.thermodynamic_constants import default_RT as RT
 from cost_function import EnzymeCostFunction
+from scipy.io import savemat
+import colors
 
 class ECMmodel(object):
     
@@ -65,7 +67,13 @@ class ECMmodel(object):
                                 map(self.cid2max_bound.get, self.kegg_model.cids)))
         lnC_bounds = np.log(c_bounds * 1e-3) # convert from mM to M
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
-                                      lnC_bounds=lnC_bounds, ecf_version='ECF2')
+                                      lnC_bounds=lnC_bounds, ecf_version='ECF3')
+    
+    def WriteMatFile(self, file_name):
+        mdict = self.ecf.Serialize()
+        mdict['cids'] = self.kegg_model.cids
+        mdict['rids'] = self.kegg_model.rids
+        savemat(file_name, mdict, format='5')
     
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
@@ -151,6 +159,40 @@ class ECMmodel(object):
             for j, rid in enumerate(rids):
                 KMM[i, j] = rid_cid2KMM.get((rid,cid), 1)
         return KMM
+    
+    def MDF(self):
+        return self.ecf.MDF()
+        
+    def ECM(self, lnC0=None):
+        return self.ecf.ECM(lnC0)
+        
+    def ECF(self, lnC):
+        return self.ecf.ECF(lnC)
+        
+    def PlotEnzymeCosts(self, lnC, ax):
+        ecf_mat = self.ecf.GetEnzymeCostPartitions(lnC)
+        datamat = np.log(ecf_mat)
+        base = min(datamat[np.isfinite(datamat)].flat) - 1
+        bottoms = np.hstack([np.ones((datamat.shape[0], 1)) * base,
+                             np.cumsum(datamat, 1)])
+        bottoms = np.exp(bottoms)
+        steps = np.diff(bottoms)
+        
+        labels = ['capacity', 'thermodynamic', 'kinetic', 'allosteric']
+
+        ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
+        width = 0.7
+        cmap = colors.ColorMap(labels)
+        ax.set_yscale('log')
+        for i, label in enumerate(labels):
+            ax.bar(ind, steps[:, i], width, bottom=bottoms[:, i], color=cmap[label])
+        ax.set_xticks(ind + width/2, self.kegg_model.rids)
+        ax.legend(labels, loc='best', framealpha=0.2)
+        ax.set_xlabel('reaction')
+        ax.set_ylabel('enzyme cost [mg]')
+        ax.set_ylim(ymin=base)
+        total = np.prod(ecf_mat, 1).sum()
+        ax.set_title('Total enzyme cost = %.2f [mg]' % total)
     
 class SBtabDict(dict):
     

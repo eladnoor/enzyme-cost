@@ -329,9 +329,6 @@ class EnzymeCostFunction(object):
             else:
                 return np.log(e)
                 
-        def constfun(y):
-            return self.driving_force(self.y_to_lnC(y))
-        
         if y0 is None:
             y0 = self.MDF()
         bounds = self.y_range
@@ -348,13 +345,12 @@ class EnzymeCostFunction(object):
         y_bounds = np.array([(self.y_fixed, self.y_fixed)] + \
                             [self.y_range] * self.Nint + \
                             [(self.y_fixed, self.y_fixed)])
-        
-        p = Pathway(self.S, self.v, self.dG0/RT, y_bounds[:, 0], y_bounds[:, 1])
+        p = Pathway(self.S, self.v, self.dG0/RT, y_bounds)
         mdf, params = p.FindMDF()
         if np.isnan(mdf) or mdf < 0.0:
             logging.error('Negative MDF value: %.1f' % mdf)
             raise ThermodynamicallyInfeasibleError()
-        return np.log(params['concentrations'][1:-1, 0])
+        return params['ln concentrations'][1:-1, 0]
     
     def is_feasible(self, y):
         lnC = self.y_to_lnC(y)

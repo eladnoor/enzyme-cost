@@ -5,7 +5,6 @@ Created on Mon Apr 13 15:30:45 2015
 @author: eladn
 """
 import numpy as np
-import types
 from collections import Iterable
 
 def CastToColumnVector(v):
