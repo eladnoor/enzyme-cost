@@ -61,12 +61,11 @@ class ECMmodel(object):
         dG0 = np.matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
                                     self.kegg_model.rids, rid_cid2KMM)
-        c_ranges = np.array(zip(map(self.cid2min_bound.get, self.kegg_model.cids),
+        c_bounds = np.array(zip(map(self.cid2min_bound.get, self.kegg_model.cids),
                                 map(self.cid2max_bound.get, self.kegg_model.cids)))
-        c_ranges *= 1e-3 # convert from mM to M
-        
+        lnC_bounds = np.log(c_bounds * 1e-3) # convert from mM to M
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
-                                      c_ranges=c_ranges, ecf_version='ECF2')
+                                      lnC_bounds=lnC_bounds, ecf_version='ECF2')
     
     @staticmethod
     def GenerateKeggModel(sbtab_dict):

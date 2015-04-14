@@ -30,7 +30,7 @@ class EnzymeCostFunction(object):
     
     def __init__(self, S, flux, kcat, dG0, KMM,
                  A_act=None, A_inh=None, K_act=None, K_inh=None,
-                 c_ranges=None, ecf_version='ECF4'):
+                 lnC_bounds=None, ecf_version='ECF4'):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
             
@@ -49,11 +49,11 @@ class EnzymeCostFunction(object):
         """
         self.Nc, self.Nr = S.shape
         
-        assert flux.shape     == (self.Nr, 1)
-        assert kcat.shape     == (self.Nr, 1)
-        assert dG0.shape      == (self.Nr, 1)
-        assert S.shape        == KMM.shape
-        assert c_ranges.shape == (self.Nc, 2)
+        assert flux.shape       == (self.Nr, 1)
+        assert kcat.shape       == (self.Nr, 1)
+        assert dG0.shape        == (self.Nr, 1)
+        assert KMM.shape        == (self.Nc, self.Nr)
+        assert lnC_bounds.shape == (self.Nc, 2)
 
         self.S = S
         self.flux = flux
@@ -66,7 +66,7 @@ class EnzymeCostFunction(object):
         self.S_prod[self.S < 0] = 0
 
         # convert the ranges to logscale        
-        self.lnC_bounds = np.log(c_ranges)
+        self.lnC_bounds = lnC_bounds
         
         self.subs_denom = np.matrix(np.diag(self.S_subs.T * np.log(KMM))).T
         self.prod_denom = np.matrix(np.diag(self.S_prod.T * np.log(KMM))).T
@@ -238,13 +238,12 @@ class EnzymeCostFunction(object):
         """
             Find an initial point (x0) for the optimization using MDF.
         """
-        p = Pathway(self.S, self.flux, self.dG0/RT,
-                    self.lnC_bounds[:, 0], self.lnC_bounds[:, 1])
+        p = Pathway(self.S, self.flux, self.dG0, self.lnC_bounds)
         mdf, params = p.FindMDF()
         if np.isnan(mdf) or mdf < 0.0:
             logging.error('Negative MDF value: %.1f' % mdf)
             raise ThermodynamicallyInfeasibleError()
-        return np.log(params['concentrations'])
+        return params['ln concentrations']
     
 
 

@@ -1,33 +1,28 @@
 import numpy as np
 import pulp
-import scipy.optimize
-from util import CastToColumnVector
+from component_contribution.thermodynamic_constants import default_RT as RT
 
 class Pathway(object):
     
-    def __init__(self, S, fluxes, G0, x_min, x_max):
+    def __init__(self, S, fluxes, dG0, lnC_bounds):
         """
             All inputs should be of type numpy.array:
             
             S            - the stoichiometric matrix
             fluxes       - the relative flux in each reaction
             G0           - the standard reaction Gibbs energies (in units of RT)
-            x_min, x_max - the natural log of the lower and upper bounds on 
+            lnC_bounds   - the natural log of the lower and upper bounds on 
                            compounds concentrations (relative to 1M)
         """
+        self.Nc, self.Nr = S.shape
+        assert fluxes.shape     == (self.Nr, 1)
+        assert dG0.shape        == (self.Nr, 1)
+        assert lnC_bounds.shape == (self.Nc, 2)
+
         self.S = S
-        self.Nc = self.S.shape[0]
-        self.Nr = self.S.shape[1]
-
-        self.fluxes = CastToColumnVector(fluxes)
-        self.G0     = CastToColumnVector(G0)
-        self.x_min  = CastToColumnVector(x_min)
-        self.x_max  = CastToColumnVector(x_max)
-
-        assert self.fluxes.shape == (self.Nr, 1)
-        assert self.G0.shape     == (self.Nr, 1)
-        assert self.x_min.shape  == (self.Nc, 1)
-        assert self.x_max.shape  == (self.Nc, 1)
+        self.fluxes = fluxes
+        self.dG0 = dG0
+        self.lnC_bounds = lnC_bounds
 
     def _MakeDrivingForceConstraints(self):
         """
@@ -42,17 +37,17 @@ class Pathway(object):
         A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
                                  np.hstack([np.eye(self.Nc),  np.zeros((self.Nc, 1))]),
                                  np.hstack([-np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
-        b = np.matrix(np.vstack([-I_dir * self.G0,
-                                 self.x_max,
-                                 -self.x_min]))
+        b = np.matrix(np.vstack([-(I_dir * self.dG0) /RT,
+                                  self.lnC_bounds[:, 1:],
+                                 -self.lnC_bounds[:, :1]]))
         c = np.matrix(np.vstack([np.zeros((self.Nc, 1)),
                                  np.ones((1, 1))]))
        
         return A, b, c
 
-    def _MakeOBEProblem(self):
+    def _MakeMDFProblem(self):
         """Create a PuLP problem for finding the Maximal Thermodynamic
-        Driving Force (OBE).
+        Driving Force (MDF).
        
         Does not set the objective function... leaves that to the caller.
        
@@ -70,24 +65,24 @@ class Pathway(object):
         lp = pulp.LpProblem("MDF", pulp.LpMaximize)
         
         # ln-concentration variables
-        l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
+        _l = pulp.LpVariable.dicts("lnC", ["%d" % i for i in xrange(self.Nc)])
         B = pulp.LpVariable("B")
-        x = [l["%d" % i] for i in xrange(self.Nc)] + [B]
+        lnC = [_l["%d" % i] for i in xrange(self.Nc)] + [B]
         
         for j in xrange(A.shape[0]):
-            row = [A[j, i] * x[i] for i in xrange(A.shape[1])]
+            row = [A[j, i] * lnC[i] for i in xrange(A.shape[1])]
             lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
         
-        objective = pulp.lpSum([c[i] * x[i] for i in xrange(A.shape[1])])
+        objective = pulp.lpSum([c[i] * lnC[i] for i in xrange(A.shape[1])])
         lp.setObjective(objective)
         
-        #lp.writeLP("res/obe_primal.lp")
+        lp.writeLP("res/MDF_primal.lp")
         
-        return lp, x
+        return lp, lnC
 
-    def _MakeOBEProblemDual(self):
+    def _MakeMDFProblemDual(self):
         """Create a CVXOPT problem for finding the Maximal Thermodynamic
-        Driving Force (OBE).
+        Driving Force (MDF).
        
         Does not set the objective function... leaves that to the caller.
        
@@ -102,7 +97,7 @@ class Pathway(object):
         # Create the driving force variable and add the relevant constraints
         A, b, c = self._MakeDrivingForceConstraints()
        
-        lp = pulp.LpProblem("OBE", pulp.LpMinimize)
+        lp = pulp.LpProblem("MDF", pulp.LpMinimize)
         
         w = pulp.LpVariable.dicts("w", 
                                   ["%d" % i for i in xrange(self.Nr)],
@@ -127,37 +122,10 @@ class Pathway(object):
         objective = pulp.lpSum([b[i] * y[i] for i in xrange(A.shape[0])])
         lp.setObjective(objective)
         
-        #lp.writeLP("res/obe_dual.lp")
+        #lp.writeLP("res/MDF_dual.lp")
         
         return lp, w, z, u
 
-    def _GetTotalEnergyProblem(self, min_driving_force=0, objective=pulp.LpMinimize):
-        # Create the driving force variable and add the relevant constraints
-        A, b, _c = self._MakeDrivingForceConstraints()
-       
-        lp = pulp.LpProblem("OBE", objective)
-        
-        # ln-concentration variables
-        l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
-        x = [l["%d" % i] for i in xrange(self.Nc)] + [min_driving_force]
-        
-        total_g = pulp.LpVariable("g_tot")
-        
-        for j in xrange(A.shape[0]):
-            row = [A[j, i] * x[i] for i in xrange(A.shape[1])]
-            lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
-        
-        total_g0 = float(np.dot(self.G0.T, self.fluxes))
-        total_reaction = np.dot(self.S, self.fluxes)
-        row = [total_reaction[i, 0] * x[i] for i in xrange(self.Nc)]
-        lp += (total_g == total_g0 + pulp.lpSum(row)), "Total G"
-
-        lp.setObjective(total_g)
-        
-        #lp.writeLP("res/total_g.lp")
-        
-        return lp, total_g
-        
     def FindMDF(self):
         """
             Find the MDF (Optimized Bottleneck Driving-Force)
@@ -167,104 +135,24 @@ class Pathway(object):
                 and a dictionary of all the
                 parameters and the resulting MDF value
         """
-        lp_primal, x = self._MakeOBEProblem()
-        #lp_primal.writeLP('res/mdf.lp')
+        lp_primal, lnC = self._MakeMDFProblem()
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
             
-        mdf = pulp.value(x[-1])
-        x = np.matrix(map(pulp.value, x[0:self.Nc])).T
-        conc = np.exp(x)
+        mdf = pulp.value(lnC[-1])
+        lnC = np.matrix(map(pulp.value, lnC[0:self.Nc])).T
     
-        lp_dual, w, z, u = self._MakeOBEProblemDual()
+        lp_dual, w, z, u = self._MakeMDFProblemDual()
         lp_dual.solve(pulp.CPLEX(msg=0))
         if lp_dual.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve OBE dual")
+            raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
         reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in xrange(self.Nr)]).T
         compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in xrange(self.Nc)]).T - \
                           np.matrix([pulp.value(u["%d" % j]) for j in xrange(self.Nc)]).T
         
-        # find the maximum and minimum total Gibbs energy of the pathway,
-        # under the constraint that the driving force of each reaction is >= OBE
-        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
-        lp_total.solve(pulp.CPLEX(msg=0))
-        if lp_total.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
-        min_tot_dg = pulp.value(total_dg)
-    
-        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
-        lp_total.solve(pulp.CPLEX(msg=0))
-        if lp_total.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
-        max_tot_dg = pulp.value(total_dg)
-        
         params = {'MDF': mdf,
-                  'concentrations' : conc,
+                  'ln concentrations' : lnC,
                   'reaction prices' : reaction_prices,
-                  'compound prices' : compound_prices,
-                  'maximum total dG' : max_tot_dg,
-                  'minimum total dG' : min_tot_dg}
+                  'compound prices' : compound_prices}
         return mdf, params
-    
-    def FindCBA(self):
-        import cvxpy
-        """
-            Solves the minimal enzyme cost function assuming the rate law: 
-            
-            v_i = E_i * (1 - exp(G_i))
-            
-            where G is the reaction Gibbs energy (in units of RT) 
-        """
-        lnC = cvxpy.variable(self.Nc, 1, name='lnC')
-        G = cvxpy.matrix(self.G0) + cvxpy.matrix(self.S).T * lnC
-        x = cvxpy.exp(-cvxpy.log(1 - cvxpy.exp(G)))
-        E = x.T * cvxpy.matrix(self.fluxes)
-    
-        constraints = [cvxpy.geq(lnC, cvxpy.matrix(self.x_min))] + \
-                      [cvxpy.leq(lnC, cvxpy.matrix(self.x_max))] + \
-                      [cvxpy.leq(G, 0.0)]
-        
-        objective = cvxpy.minimize(E)
-        
-        program = cvxpy.program(objective, constraints)
-        program.solve(quiet=True)
-        
-        G_opt = list(G.value.flat)
-        lnC_opt = list(lnC.value.flat)
-
-        cba = E.value
-        params = {'CBA': cba,
-                  'concentrations' : np.exp(lnC.value),
-                  'Gibbs energies' : G.value}
-        return cba, params
-    
-    def calc_E(self, x):
-        S = np.matrix(self.S)
-        x = np.matrix(x.flat)
-        thermo = 1 - np.exp(self.G0 + S.T * x.T)
-        E = np.dot((1.0 / thermo).T, self.fluxes)
-        return float(E)
-    
-    def FindECF(self):
-        """
-            Solves the minimal enzyme cost function assuming the rate law: 
-            
-            v_i = E_i * (1 - exp(G_i)) * Pkin(x)
-            
-            where 'G' is the reaction Gibbs energy (in units of RT) 
-            and 'Pkin' is a polynomial representing the kinetic term 
-            where 'x' are the log-concentrations of metabolites
-        """
-        
-        fun = lambda x : self.calc_E(x)
-        x0 = (self.x_min + self.x_max) / 2
-
-        print fun(x0)
-
-        res = scipy.optimize.minimize(fun, x0)
-        if res.success:
-            return res.x
-        else:
-            print "No solution found: " + res.message
-            return None
