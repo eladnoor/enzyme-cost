@@ -66,7 +66,7 @@ class ECMmodel(object):
         c_ranges *= 1e-3 # convert from mM to M
         
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
-                                      c_ranges=c_ranges, ecf_version='ECF3')
+                                      c_ranges=c_ranges, ecf_version='ECF2')
     
     @staticmethod
     def GenerateKeggModel(sbtab_dict):

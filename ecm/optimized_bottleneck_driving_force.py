@@ -1,16 +1,8 @@
 import numpy as np
 import pulp
-import types
 import scipy.optimize
+from util import CastToColumnVector
 
-def CastToColumnVector(v):
-    if type(v) == types.ListType:
-        return np.array(v, ndmin=2).T
-    if type(v) in [np.ndarray, np.matrix]:
-        return np.array(v.flat, ndmin=2).T
-    else:
-        raise ValueError('Can only cast lists or numpy arrays, not ' + str(type(v)))
-    
 class Pathway(object):
     
     def __init__(self, S, fluxes, G0, x_min, x_max):
@@ -28,14 +20,14 @@ class Pathway(object):
         self.Nr = self.S.shape[1]
 
         self.fluxes = CastToColumnVector(fluxes)
-        self.G0 = CastToColumnVector(G0)
-        self.x_min = CastToColumnVector(x_min)
-        self.x_max = CastToColumnVector(x_max)
+        self.G0     = CastToColumnVector(G0)
+        self.x_min  = CastToColumnVector(x_min)
+        self.x_max  = CastToColumnVector(x_max)
 
         assert self.fluxes.shape == (self.Nr, 1)
-        assert self.G0.shape == (self.Nr, 1)
-        assert self.x_min.shape == (self.Nc, 1)
-        assert self.x_max.shape == (self.Nc, 1)
+        assert self.G0.shape     == (self.Nr, 1)
+        assert self.x_min.shape  == (self.Nc, 1)
+        assert self.x_max.shape  == (self.Nc, 1)
 
     def _MakeDrivingForceConstraints(self):
         """
@@ -182,7 +174,8 @@ class Pathway(object):
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
             
         mdf = pulp.value(x[-1])
-        conc = np.matrix([np.exp(pulp.value(x[j])) for j in xrange(self.Nc)]).T
+        x = np.matrix(map(pulp.value, x[0:self.Nc])).T
+        conc = np.exp(x)
     
         lp_dual, w, z, u = self._MakeOBEProblemDual()
         lp_dual.solve(pulp.CPLEX(msg=0))

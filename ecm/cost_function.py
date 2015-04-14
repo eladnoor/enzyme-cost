@@ -8,17 +8,18 @@ Created on Wed Feb 18 15:40:11 2015
 import logging
 import numpy as np
 from scipy.optimize import minimize
-from ecm.optimized_bottleneck_driving_force import Pathway
+from optimized_bottleneck_driving_force import Pathway
 from component_contribution.thermodynamic_constants import default_RT as RT
+from util import CastToColumnVector
 
 class ThermodynamicallyInfeasibleError(Exception):
 
-    def __init__(self, y=None):
-        if y is None:
+    def __init__(self, lnC=None):
+        if lnC is None:
             Exception.__init__(self, 'this reaction system has no feasible solutions')
         else:
-            Exception.__init__(self, 'y = %s : is thermodynamically infeasible' 
-                                     % str(np.exp(y)))
+            Exception.__init__(self, 'C = %s : is thermodynamically infeasible' 
+                                     % str(np.exp(lnC)))
     
     pass
 
@@ -65,7 +66,7 @@ class EnzymeCostFunction(object):
         self.S_prod[self.S < 0] = 0
 
         # convert the ranges to logscale        
-        self.y_bounds = np.log(c_ranges)
+        self.lnC_bounds = np.log(c_ranges)
         
         self.subs_denom = np.matrix(np.diag(self.S_subs.T * np.log(KMM))).T
         self.prod_denom = np.matrix(np.diag(self.S_prod.T * np.log(KMM))).T
@@ -97,25 +98,16 @@ class EnzymeCostFunction(object):
         except AttributeError:
             raise ValueError('The enzyme cost function %s is unknown' % ecf_version)
         
-    def y_to_lnC(self, y):
-        """
-            The difference between lnC and y, is that lnC includes also the
-            concentrations of the fixed (external) metabolites
-        """
-        if y.shape == (self.Nc, ):
-            y = np.matrix(y).T
-        assert y.shape[0] == self.Nc
-
-        return np.vstack([np.ones((1, y.shape[1])) * self.y_fixed,
-                          y,
-                          np.ones((1, y.shape[1])) * self.y_fixed])
-
     def driving_force(self, lnC):
         # calculate the driving force for every reaction in every condition
         assert lnC.shape[0] == self.Nc
-        return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - self.S.T * lnC
+        if len(lnC.shape) == 1:
+            return -self.dG0 / RT - np.dot(self.S.T, lnC)
+        else:
+            return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - self.S.T * lnC
 
     def eta_thermodynamic(self, lnC):
+        assert lnC.shape == (self.Nc, 1)
         df = self.driving_force(lnC)
         
         # replace infeasbile reactions with a positive driving force to avoid negative cost in ECF2
@@ -128,19 +120,21 @@ class EnzymeCostFunction(object):
         return eta_thermo
 
     def eta_kinetic(self, lnC):
+        assert lnC.shape == (self.Nc, 1)
         kin_subs = np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
         kin_prod = np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
         eta_kin = kin_subs/(1.0 + kin_subs + kin_prod)
         return eta_kin        
 
     def eta_allosteric(self, lnC):
+        assert lnC.shape == (self.Nc, 1)
         kin_act = np.exp(-self.A_act.T * lnC + np.tile(self.act_denom, (1, lnC.shape[1])))
         kin_inh = np.exp(self.A_inh.T * lnC - np.tile(self.inh_denom, (1, lnC.shape[1])))
         eta_kin = 1.0 / (1.0 + kin_act) / (1.0 + kin_inh)
         return eta_kin
 
-    def is_feasible(self, y):
-        lnC = self.y_to_lnC(y)
+    def is_feasible(self, lnC):
+        assert lnC.shape == (self.Nc, 1)
         df = self.driving_force(lnC)
         return (df > 0).all()
         
@@ -152,6 +146,7 @@ class EnzymeCostFunction(object):
             Returns:
                 Vmax  - in units of [umol/min]
         """
+        assert E.shape == (self.Nr, 1)
         return np.multiply(self.kcat, E) * 1e3 # umol/min
     
     def ECF1(self, lnC):
@@ -163,6 +158,7 @@ class EnzymeCostFunction(object):
         # lnC is not used for ECF1, except to determine the size of the result
         # matrix.
         # we multiply by 1e-3 to convert the kcat to umol/min/<gr> instead of <mg>
+        assert lnC.shape == (self.Nc, 1)
         return np.tile(np.multiply(self.flux, 1e-3/self.kcat), (1, lnC.shape[1]))
 
     def ECF2(self, lnC):
@@ -172,6 +168,7 @@ class EnzymeCostFunction(object):
                   indices for different points in the metabolite polytope (i.e.
                   conditions).
         """
+        assert lnC.shape == (self.Nc, 1)
         ECF2 = np.multiply(self.ECF1(lnC), 1.0/self.eta_thermodynamic(lnC))
     
         # fix the "fake" values that were given in ECF2 to infeasible reactions
@@ -187,52 +184,62 @@ class EnzymeCostFunction(object):
                   (i.e. conditions).
         """
         # calculate the product of all substrates and products for the kinetic term
+        assert lnC.shape == (self.Nc, 1)
         return np.multiply(self.ECF2(lnC), 1.0/self.eta_kinetic(lnC))
 
     def ECF4(self, lnC):
         """
             Add a layer of allosteric activators/inibitors
         """
+        assert lnC.shape == (self.Nc, 1)
         return np.multiply(self.ECF3(lnC), 1.0/self.eta_allosteric(lnC))
 
     def get_fluxes(self, lnC, E):
+        assert lnC.shape == (self.Nc, 1)
+        assert E.shape == (self.Nr, 1)
         v = np.tile(self.get_vmax(E), (1, lnC.shape[1]))
         v = np.multiply(v, self.eta_thermodynamic(lnC))
         v = np.multiply(v, self.eta_kinetic(lnC))
         v = np.multiply(v, self.eta_allosteric(lnC))
         return v
     
-    def ECM(self, y0=None):
+    def ECM(self, lnC0=None):
         """
             Use convex optimization to find the y with the minimal total
-            enzyme cost per flux, i.e. sum(ECF(y))
+            enzyme cost per flux, i.e. sum(ECF(lnC))
         """
         
-        def optfun(y):
-            e = self.ECF(self.y_to_lnC(y)).sum(axis=0)[0,0]
-            #print lnx.T, e
+        def optfun(lnC):
+            lnC = CastToColumnVector(lnC)
+            e = self.ECF(lnC).sum(axis=0)[0,0]
             if np.isnan(e):
                 return 1e5
             else:
+                print np.log(e)
                 return np.log(e)
                 
-        def constfun(y):
-            return self.driving_force(self.y_to_lnC(y))
-        
-        if y0 is None:
-            y0 = self.MDF()
+        if lnC0 is None:
+            lnC0 = self.MDF()
+        else:
+            assert lnC0.shape == (self.Nc, 1)
 
-        res = minimize(optfun, y0, bounds=self.y_bounds, method='TNC')
+        res = minimize(optfun, lnC0, bounds=self.lnC_bounds, method='TNC')
+        
         if not res.success:
             print res
-        return np.matrix(res.x).T
+            return lnC0 * np.nan
+        else:
+            lnC_min = np.matrix(res.x).T
+            print optfun(lnC0)
+            print optfun(lnC_min)
+            return lnC_min
 
     def MDF(self):
         """
             Find an initial point (x0) for the optimization using MDF.
         """
         p = Pathway(self.S, self.flux, self.dG0/RT,
-                    self.y_bounds[:, 0], self.y_bounds[:, 1])
+                    self.lnC_bounds[:, 0], self.lnC_bounds[:, 1])
         mdf, params = p.FindMDF()
         if np.isnan(mdf) or mdf < 0.0:
             logging.error('Negative MDF value: %.1f' % mdf)
