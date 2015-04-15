@@ -5,23 +5,24 @@ Created on Wed Apr  1 16:38:13 2015
 @author: noore
 """
 
-from SBtabTools import oneOrMany
-from SBtab import SBtabTable
-from tablibIO import loadTSV
+from sbtab_dict import SBtabDict
 from component_contribution.kegg_reaction import KeggReaction
 from component_contribution.kegg_model import KeggModel
 from component_contribution.component_contribution import ComponentContribution
-import re
 import numpy as np
 from component_contribution.thermodynamic_constants import default_RT as RT
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat
 import colors
+from util import ParseReaction
+from scipy import stats
 
 class ECMmodel(object):
     
     def __init__(self, sbtab_fpath):
         self._sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
+        self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
+            'Compound:Identifiers:kegg.compound', 'Compound')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
 
         # a dictionary indicating which compound is external or not
@@ -82,7 +83,7 @@ class ECMmodel(object):
         
         reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'Reaction')
         reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'SumFormula')
-        sparse_reactions = map(SBtabDict.ParseReaction, reaction_formulas)
+        sparse_reactions = map(ParseReaction, reaction_formulas)
         
         map_met2kegg = lambda spr : {met2kegg.get(k): v for (k,v) in spr.iteritems()}
         sparse_reactions_kegg = map(map_met2kegg, sparse_reactions)
@@ -182,10 +183,12 @@ class ECMmodel(object):
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
         width = 0.7
-        cmap = colors.ColorMap(labels)
+        cmap = colors.ColorMap(labels, saturation=0.5, value=0.8)
         ax.set_yscale('log')
         for i, label in enumerate(labels):
-            ax.bar(ind, steps[:, i], width, bottom=bottoms[:, i], color=cmap[label])
+            ax.bar(ind, steps[:, i], width,
+                   bottom=bottoms[:, i], color=cmap[label],
+                   alpha=1.0)
         ax.set_xticks(ind + width/2, self.kegg_model.rids)
         ax.legend(labels, loc='best', framealpha=0.2)
         ax.set_xlabel('reaction')
@@ -194,113 +197,71 @@ class ECMmodel(object):
         total = np.prod(ecf_mat, 1).sum()
         ax.set_title('Total enzyme cost = %.2f [mg]' % total)
     
-class SBtabDict(dict):
-    
-    def __init__(self, sbtab_list):
-        """
-            Arguments:
-                sbtab_list - a list of SBtabTable objects
-        """
-        for m in sbtab_list:
-            self[m.table_name] = m
-
-    @staticmethod
-    def FromSBtab(fpath):
-        spreadsheet_file = loadTSV(fpath, False)
-        m = oneOrMany(spreadsheet_file)
-        sbtab_list = [SBtabTable(dset, fpath) for dset in m]
-        return SBtabDict(sbtab_list)
-
-    def GetColumnFromTable(self, table_name, column_name):
-        """
-            Returns:
-                a list of the values in the column called 'column_name'
-                in the table 'table_name'
-        """
-        column_index = self[table_name].columns_dict['!' + column_name]
-        rows = self[table_name].getRows()
-        return [r[column_index] for r in rows]
-
-    def GetColumnsFromTable(self, table_name, column_names):
-        """
-            Arguments:
-                table_name   - the name of the table in the SBtab file (without '!!')
-                column_names - a list of column names from which to get the data (without '!')
-                
-            Returns:
-                a list of lists containing the values corresponding to the
-                columns in 'column_names' in the table 'table_name'
-        """
-        idxs = [self[table_name].columns_dict['!' + c] for c in column_names]
-        return [map(r.__getitem__, idxs) for r in self[table_name].getRows()]
+    def _GetMeasuredMetaboliteConcentrations(self):
+        # assume concentrations are in mM
+        return self._sbtab_dict.GetDictFromTable(
+            'Concentration', 'Compound:Identifiers:kegg.compound',
+            'Concentration', value_mapping=lambda x: (float(x) * 1e-3))
         
-    def GetDictFromTable(self, table_name, key_column_name, value_column_name,
-                         value_mapping=None):
-        column_names = [key_column_name, value_column_name]   
-        keys, vals = zip(*self.GetColumnsFromTable(table_name, column_names))
-        return dict(zip(keys, map(value_mapping, vals)))
+    def _GetMeasuredEnzymeConcentrations(self):
+        # assume concentrations are in mM
+        return self._sbtab_dict.GetDictFromTable(
+            'EnzymeConcentration', 'Reaction',
+            'EnzymeConcentration', value_mapping=lambda x: (float(x) * 1e-3))
 
-    @staticmethod
-    def ParseReactionFormulaSide(s):
-        """ 
-            Parses the side formula, e.g. '2 C00001 + C00002 + 3 C00003'
-            Ignores stoichiometry.
-            
-            Returns:
-                The set of CIDs.
-        """
-        if s.strip() == "null":
-            return {}
-        
-        compound_bag = {}
-        for member in re.split('\s+\+\s+', s):
-            tokens = member.split(None, 1)
-            if len(tokens) == 0:
-                continue
-            if len(tokens) == 1:
-                amount = 1
-                key = member
-            else:
-                try:
-                    amount = float(tokens[0])
-                except ValueError:
-                    raise Exception(
-                        "Non-specific reaction: %s" % s)
-                key = tokens[1]
-                
-            try:
-                compound_bag[key] = compound_bag.get(key, 0) + amount
-            except ValueError:
-                raise Exception(
-                    "Non-specific reaction: %s" % s)
-        
-        return compound_bag
+    def ValidateMetaboliteConcentrations(self, lnC, ax):
+        pred_conc = np.exp(lnC)
 
-    @staticmethod
-    def ParseReaction(formula, arrow='<=>'):
-        """ 
-            Parses a two-sided formula such as: 2 FBP => DHAP + GAP
-            
-            Return:
-                The set of substrates, products and the direction of the reaction
-        """
-        tokens = formula.split(arrow)
-        if len(tokens) < 2:
-            raise Exception('Reaction does not contain the arrow sign (%s): %s'
-                            % (arrow, formula))
-        if len(tokens) > 2:
-            raise Exception('Reaction contains more than one arrow sign (%s): %s'
-                            % (arrow, formula))
+        meas_met2conc = self._GetMeasuredMetaboliteConcentrations()
+        meas_conc = np.matrix(map(meas_met2conc.get, self.kegg_model.cids)).T
         
-        left = tokens[0].strip()
-        right = tokens[1].strip()
+        mask = ~np.isnan(pred_conc) & ~np.isnan(meas_conc)
+
+        slope, intercept, r_value, p_value, std_err = \
+            stats.linregress(meas_conc[mask], pred_conc[mask])
         
-        sparse_reaction = {}
-        for cid, count in SBtabDict.ParseReactionFormulaSide(left).iteritems():
-            sparse_reaction[cid] = sparse_reaction.get(cid, 0) - count 
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.plot(meas_conc, pred_conc, 'o')
+        ax.plot([1e-7, 1e-1], [1e-7, 1e-1], '--')
+        ax.set_title(r'Validate metabolite conc. ($r^2$ = %.2f)' % r_value**2)
+        ax.set_xlabel('measured [M]')
+        ax.set_ylabel('predicted [M]')
+        ax.grid(False)
+        
+        data = zip(map(self.kegg2met.get, self.kegg_model.cids),
+                   meas_conc.flat,
+                   pred_conc.flat)
+                   
+        for met, meas, pred in data:
+            if (not np.isnan(pred)) and (not np.isnan(meas)):
+                ax.text(meas, pred, met)
+        
+    def ValidateEnzymeConcentrations(self, lnC, ax):
+        pred_conc = self.ecf.ECF(lnC)
 
-        for cid, count in SBtabDict.ParseReactionFormulaSide(right).iteritems():
-            sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
+        meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
+        meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids)).T
+        
+        mask = ~np.isnan(pred_conc) & ~np.isnan(meas_conc)
 
-        return sparse_reaction
-    
+        slope, intercept, r_value, p_value, std_err = \
+            stats.linregress(meas_conc[mask], pred_conc[mask])
+        
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.plot(meas_conc, pred_conc, 'o')
+        ax.plot([1e-7, 1e-1], [1e-7, 1e-1], '--')
+        ax.set_title(r'Validate enzyme conc. ($r^2$ = %.2f)' % r_value**2)
+        ax.set_xlabel('measured [M]')
+        ax.set_ylabel('predicted [mg]')
+        ax.grid(False)
+        
+        data = zip(self.kegg_model.rids,
+                   meas_conc.flat,
+                   pred_conc.flat)
+                   
+        for met, meas, pred in data:
+            if (not np.isnan(pred)) and (not np.isnan(meas)):
+                ax.text(meas, pred, met)        
+        

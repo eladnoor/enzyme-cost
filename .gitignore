@@ -3,3 +3,4 @@
 /.pydevproject
 *.pyc
 /res/*
+/data/.~lock.ecm_karl.tsv#
