@@ -14,12 +14,13 @@ from component_contribution.thermodynamic_constants import default_RT as RT
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat
 import colors
-from util import ParseReaction
-from scipy import stats
+from util import ParseReaction, PlotCorrelation
+import logging
+from errors import ThermodynamicallyInfeasibleError
 
 class ECMmodel(object):
     
-    def __init__(self, sbtab_fpath):
+    def __init__(self, sbtab_fpath, thermo_mode='CC'):
         self._sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
             'Compound:Identifiers:kegg.compound', 'Compound')
@@ -41,22 +42,14 @@ class ECMmodel(object):
         self.kegg_model.check_S_balance()
         cc = ComponentContribution.init()
         self.kegg_model.add_thermo(cc)
-        self._CalcGibbsEneriges()
+        self._CalcGibbsEneriges(mode=thermo_mode) # mode can be: 'CC', 'KEQ', 'DG0'
         
         rid2keq, rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
             ECMmodel._ReadKineticParameters(self._sbtab_dict)
         
-        # load the standard Gibbs energies from the SBtab file (for legacy reasons)
-        # basically, we don't need them because we can get the same data
-        # from component-contribution directly
-        
-        #rid2dG0_rate_constant_table = {rid: -RT*np.log(keq) for (rid, keq) in rid2keq.iteritems()}
-        #
-        #rid2dG0_gibbs_energy_table = self._sbtab_dict.GetDictFromTable(
-        #    'GibbsEnergyOfReaction', 'Reaction', 'dG0', value_mapping=float)
-        
+        # flux is assumed to be given in mM/s, converting it to M/s
         rid2flux = self._sbtab_dict.GetDictFromTable(
-            'Flux', 'Reaction', 'Flux', value_mapping=float)
+            'Flux', 'Reaction', 'Flux', value_mapping=lambda x: float(x)*1e-3)
         
         S = self.kegg_model.S
         flux = np.matrix(map(rid2flux.get, self.kegg_model.rids)).T
@@ -101,15 +94,15 @@ class ECMmodel(object):
                 'Reaction',
                 'Unit']
 
-        rid2keq = {}       # equilibrium constants
-        rid2crc_gmean = {} # catalytic rate constant geomertic mean
-        rid2crc_fwd = {}   # catalytic rate constant forward
-        rid2crc_rev = {}   # catalytic rate constant reverse
+        rid2keq = {}       # equilibrium constants [unitless]
+        rid2crc_gmean = {} # catalytic rate constant geomertic mean [1/s]
+        rid2crc_fwd = {}   # catalytic rate constant forward [1/s]
+        rid2crc_rev = {}   # catalytic rate constant reverse [1/s]
         crctype2dict = {'catalytic rate constant geometric mean': rid2crc_gmean,
                         'substrate catalytic rate constant': rid2crc_fwd,
                         'product catalytic rate constant': rid2crc_rev}
         
-        rid_cid2KMM = {}   # Michaelis-Menten constants
+        rid_cid2KMM = {}   # Michaelis-Menten constants [M]
         
         for i, row in enumerate(sbtab_dict.GetColumnsFromTable(table_name, cols)):
             try:
@@ -147,7 +140,7 @@ class ECMmodel(object):
             # basically, we don't need them because we can get the same data
             # from component-contribution directly
 
-            rid2keq, _, _, _, _ = ECMmodel.ReadKineticParameters(self._sbtab_dict)
+            rid2keq, _, _, _, _ = ECMmodel._ReadKineticParameters(self._sbtab_dict)
             self.rid2dG0 = {rid: -RT*np.log(keq) for (rid, keq) in rid2keq.iteritems()}
         elif mode == 'DG0':
             self.rid2dG0 = self._sbtab_dict.GetDictFromTable(
@@ -162,15 +155,34 @@ class ECMmodel(object):
         return KMM
     
     def MDF(self):
-        return self.ecf.MDF()
+        mdf, params = self.ecf.MDF()
+        if np.isnan(mdf) or mdf < 0.0:
+            logging.error('Negative MDF value: %.1f' % mdf)
+            logging.error('The reactions with shadow prices are:')
+            shadow_prices = params['reaction prices']
+            for rid, sp in zip(self.kegg_model.rids, shadow_prices.flat):
+                if sp:
+                    logging.error('\t%s : %g' % (rid, sp))
+            raise ThermodynamicallyInfeasibleError()
+        return params['ln concentrations']
         
     def ECM(self, lnC0=None):
-        return self.ecf.ECM(lnC0)
+        return self.ecf.ECM(lnC0 or self.MDF())
         
     def ECF(self, lnC):
         return self.ecf.ECF(lnC)
         
-    def PlotEnzymeCosts(self, lnC, ax):
+    def PlotEnzymeCosts(self, lnC, ax, top_level=3):
+        """
+            A bar plot in log-scale showing the partitioning of cost between
+            the levels of kinetic costs:
+            1 - capacity
+            2 - thermodynamics
+            3 - saturation
+            4 - allosteric
+        """
+        assert top_level in [1, 2, 3, 4]
+        
         ecf_mat = self.ecf.GetEnzymeCostPartitions(lnC)
         datamat = np.log(ecf_mat)
         base = min(datamat[np.isfinite(datamat)].flat) - 1
@@ -179,7 +191,8 @@ class ECMmodel(object):
         bottoms = np.exp(bottoms)
         steps = np.diff(bottoms)
         
-        labels = ['capacity', 'thermodynamic', 'kinetic', 'allosteric']
+        labels = ['capacity', 'thermodynamic', 'saturation', 'allosteric']
+        labels = labels[0:top_level]
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
         width = 0.7
@@ -192,10 +205,10 @@ class ECMmodel(object):
         ax.set_xticks(ind + width/2, self.kegg_model.rids)
         ax.legend(labels, loc='best', framealpha=0.2)
         ax.set_xlabel('reaction')
-        ax.set_ylabel('enzyme cost [mg]')
+        ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)
         total = np.prod(ecf_mat, 1).sum()
-        ax.set_title('Total enzyme cost = %.2f [mg]' % total)
+        ax.set_title('Total enzyme cost = %.1e [M]' % total)
     
     def _GetMeasuredMetaboliteConcentrations(self):
         # assume concentrations are in mM
@@ -215,27 +228,13 @@ class ECMmodel(object):
         meas_met2conc = self._GetMeasuredMetaboliteConcentrations()
         meas_conc = np.matrix(map(meas_met2conc.get, self.kegg_model.cids)).T
         
-        mask = ~np.isnan(pred_conc) & ~np.isnan(meas_conc)
+        mask =  (meas_conc > 0) & (pred_conc > 0)   # remove NaNs and zeros
+        mask &= np.diff(self.ecf.lnC_bounds) > 1e-9 # remove compounds with fixed concentrations
 
-        slope, intercept, r_value, p_value, std_err = \
-            stats.linregress(meas_conc[mask], pred_conc[mask])
-        
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.plot(meas_conc, pred_conc, 'o')
-        ax.plot([1e-7, 1e-1], [1e-7, 1e-1], '--')
-        ax.set_title(r'Validate metabolite conc. ($r^2$ = %.2f)' % r_value**2)
+        labels = map(self.kegg2met.get, self.kegg_model.cids)
+        PlotCorrelation(ax, meas_conc, pred_conc, labels, mask)
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
-        ax.grid(False)
-        
-        data = zip(map(self.kegg2met.get, self.kegg_model.cids),
-                   meas_conc.flat,
-                   pred_conc.flat)
-                   
-        for met, meas, pred in data:
-            if (not np.isnan(pred)) and (not np.isnan(meas)):
-                ax.text(meas, pred, met)
         
     def ValidateEnzymeConcentrations(self, lnC, ax):
         pred_conc = self.ecf.ECF(lnC)
@@ -243,25 +242,12 @@ class ECMmodel(object):
         meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
         meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids)).T
         
-        mask = ~np.isnan(pred_conc) & ~np.isnan(meas_conc)
+        mask = (pred_conc > 0) & (meas_conc > 0)
 
-        slope, intercept, r_value, p_value, std_err = \
-            stats.linregress(meas_conc[mask], pred_conc[mask])
-        
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.plot(meas_conc, pred_conc, 'o')
-        ax.plot([1e-7, 1e-1], [1e-7, 1e-1], '--')
-        ax.set_title(r'Validate enzyme conc. ($r^2$ = %.2f)' % r_value**2)
+        PlotCorrelation(ax, meas_conc, pred_conc, self.kegg_model.rids, mask)
+
         ax.set_xlabel('measured [M]')
-        ax.set_ylabel('predicted [mg]')
-        ax.grid(False)
+        ax.set_ylabel('predicted [M]')
         
-        data = zip(self.kegg_model.rids,
-                   meas_conc.flat,
-                   pred_conc.flat)
-                   
-        for met, meas, pred in data:
-            if (not np.isnan(pred)) and (not np.isnan(meas)):
-                ax.text(meas, pred, met)        
-        
+    def GetGibbsEnergies(self, lnC):
+        pass

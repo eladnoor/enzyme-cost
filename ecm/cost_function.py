@@ -5,23 +5,11 @@ Created on Wed Feb 18 15:40:11 2015
 @author: noore
 """
 
-import logging
 import numpy as np
 from scipy.optimize import minimize
 from optimized_bottleneck_driving_force import Pathway
 from component_contribution.thermodynamic_constants import default_RT as RT
 from util import CastToColumnVector
-
-class ThermodynamicallyInfeasibleError(Exception):
-
-    def __init__(self, lnC=None):
-        if lnC is None:
-            Exception.__init__(self, 'this reaction system has no feasible solutions')
-        else:
-            Exception.__init__(self, 'C = %s : is thermodynamically infeasible' 
-                                     % str(np.exp(lnC)))
-    
-    pass
 
 class NonSteadyStateSolutionError(Exception):
     pass
@@ -36,8 +24,8 @@ class EnzymeCostFunction(object):
             
             Arguments:
                 S        - stoichiometric matrix [unitless]
-                v        - steady-state fluxes [umol/min]
-                kcat     - specific activities [umol/min/mg]
+                v        - steady-state fluxes [M/s]
+                kcat     - turnover numbers [1/s]
                 dG0      - standard Gibbs free energies of reaction [kJ/mol]
                 KMM      - Michaelis-Menten coefficients [M]
                 A_act    - Hill coefficient matrix of allosteric activators [unitless]
@@ -167,7 +155,7 @@ class EnzymeCostFunction(object):
                 Vmax  - in units of [umol/min]
         """
         assert E.shape == (self.Nr, 1)
-        return np.multiply(self.kcat, E) * 1e3 # umol/min
+        return np.multiply(self.kcat, E) # in M/s
     
     def ECF1(self, lnC):
         """
@@ -176,13 +164,12 @@ class EnzymeCostFunction(object):
         
             Returns:
                 The most basic Enzyme Cost Function (only dependent on flux
-                and kcat)
+                and kcat). Gives the predicted enzyme concentrations in [M]
         """
         # lnC is not used for ECF1, except to determine the size of the result
         # matrix.
-        # we multiply by 1e-3 to convert the kcat to umol/min/<gr> instead of <mg>
         assert lnC.shape == (self.Nc, 1)
-        return np.tile(np.multiply(self.flux, 1e-3/self.kcat), (1, lnC.shape[1]))
+        return np.tile(np.multiply(self.flux, 1.0/self.kcat), (1, lnC.shape[1]))
 
     def ECF2(self, lnC):
         """
@@ -190,7 +177,8 @@ class EnzymeCostFunction(object):
                 A single metabolite ln-concentration vector
         
             Returns:
-                The thermodynamic-only Enzyme Cost Function
+                The thermodynamic-only Enzyme Cost Function.
+                Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
         ECF2 = np.multiply(self.ECF1(lnC), 1.0/self._EtaThermodynamic(lnC))
@@ -207,7 +195,8 @@ class EnzymeCostFunction(object):
         
             Returns:
                 An Enzyme Cost Function that integrates kinetic and thermodynamic
-                data, but no allosteric regulation
+                data, but no allosteric regulation.
+                Gives the predicted enzyme concentrations in [M].
         """
         # calculate the product of all substrates and products for the kinetic term
         assert lnC.shape == (self.Nc, 1)
@@ -220,7 +209,8 @@ class EnzymeCostFunction(object):
         
             Returns:
                 The full Enzyme Cost Function, i.e. with kinetic, thermodynamic
-                and allosteric data
+                and allosteric data.
+                Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
         return np.multiply(self.ECF3(lnC), 1.0/self._EtaAllosteric(lnC))
@@ -232,8 +222,9 @@ class EnzymeCostFunction(object):
         
             Returns:
                 A matrix contining the enzyme costs separated to the 4 ECF
-                factors (as columns)
-                
+                factors (as columns).
+                The first column is the ECF1 predicted concentrations in [M].
+                The other columns are unitless (added cost, always > 1)
         """
         assert lnC.shape == (self.Nc, 1)
         cap = self.ECF1(lnC)                  # capacity
@@ -266,10 +257,7 @@ class EnzymeCostFunction(object):
                 #print np.log(e)
                 return np.log(e)
                 
-        if lnC0 is None:
-            lnC0 = self.MDF()
-        else:
-            assert lnC0.shape == (self.Nc, 1)
+        assert lnC0.shape == (self.Nc, 1)
 
         bounds = zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat)
         res = minimize(optfun, lnC0, bounds=bounds, method='TNC')
@@ -285,8 +273,4 @@ class EnzymeCostFunction(object):
             Find an initial point (x0) for the optimization using MDF.
         """
         p = Pathway(self.S, self.flux, self.dG0, self.lnC_bounds)
-        mdf, params = p.FindMDF()
-        if np.isnan(mdf) or mdf < 0.0:
-            logging.error('Negative MDF value: %.1f' % mdf)
-            raise ThermodynamicallyInfeasibleError()
-        return params['ln concentrations']
+        return p.FindMDF()

@@ -7,6 +7,7 @@ Created on Mon Apr 13 15:30:45 2015
 import numpy as np
 from collections import Iterable
 import re
+from scipy import stats
 
 def CastToColumnVector(v):
     """
@@ -16,9 +17,9 @@ def CastToColumnVector(v):
         if the input is a NumPy array or matrix, it will be reshaped to
     """
     if type(v) in [np.ndarray, np.matrix]:
-        return np.matrix(np.reshape(v, (np.prod(v.shape), 1)))
+        return np.matrix(np.reshape(v, (np.prod(v.shape), 1)), dtype=float)
     if isinstance(v, Iterable):
-        return np.matrix(iter(v)).T
+        return np.matrix(list(v), dtype=float).T
     else:
         raise ValueError('Can only cast lists or numpy arrays, not ' + str(type(v)))
 
@@ -83,6 +84,40 @@ def ParseReaction(formula, arrow='<=>'):
         sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
 
     return sparse_reaction
+
+def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
+    x = CastToColumnVector(x)
+    y = CastToColumnVector(y)
+    
+    if mask is None:
+        mask = (x > 0) & (y > 0)
+    
+    ax.grid(False)
+    if scale == 'log':
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        slope, intercept, r_value, p_value, std_err = \
+            stats.linregress(np.log(x[mask]), np.log(y[mask]))
+    else:
+        ax.set_xscale('linear')
+        ax.set_yscale('linear')
+        slope, intercept, r_value, p_value, std_err = \
+            stats.linregress(x[mask], y[mask])
+        
+    ax.plot(x[mask], y[mask], 'o', color='red', alpha=0.7)
+    ax.plot(x[~mask], y[~mask], 'o', color='blue', alpha=0.4)
+
+    v_min = min(np.nanmin(x[mask]), np.nanmin(y[mask]))
+    v_max = max(np.nanmax(x[mask]), np.nanmax(y[mask]))
+    ax.plot([v_min, v_max], [v_min, v_max], '--', color=(0.2, 0.2, 0.2))
+        
+    ax.set_title(r'$r$ = %.2f (p = %.1e)' % (r_value, p_value))
+    
+    for l, x_i, y_i, m in zip(labels, x, y, mask):
+        if m:
+            ax.text(x_i, y_i, l, alpha=1.0)
+        elif np.isfinite(x_i) and np.isfinite(y_i):
+            ax.text(x_i, y_i, l, alpha=0.5)
 
 if __name__ == '__main__':
     x = np.eye(3)

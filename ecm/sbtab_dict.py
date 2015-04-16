@@ -15,6 +15,7 @@ class SBtabDict(dict):
             Arguments:
                 sbtab_list - a list of SBtabTable objects
         """
+        self.sbtab_list = sbtab_list
         for m in sbtab_list:
             self[m.table_name] = m
 
@@ -53,3 +54,4 @@ class SBtabDict(dict):
         column_names = [key_column_name, value_column_name]   
         keys, vals = zip(*self.GetColumnsFromTable(table_name, column_names))
         return dict(zip(keys, map(value_mapping, vals)))
+        
