@@ -569,52 +569,52 @@ standard Gibbs energy of reaction	PTA_R00230	R00230	9.8	9.8	Acetyl_CoA + Orthoph
 standard Gibbs energy of reaction	ACKA_R00315	R00315	-13.4	-13.4	ADP + Acetyl_phosphate <=> ATP + Acetate															
 standard Gibbs energy of reaction	STH_R00112	R00112	-1	-1	NADplus + NADPH <=> NADH + NADPplus															
 !!SBtab TableName='Concentration' TableType='Quantity' Unit='mM'																				
-!QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration																	
-concentration	_S__Malate	C00149	1.68																	
-concentration	Acetyl_CoA	C00024	0.606																	
-concentration	Fumarate	C00122	0.115																	
-concentration	cis_Aconitate	C00417	0.0161																	
-concentration	_6_Phospho_D_gluconate	C00345	3.81																	
-concentration	Orthophosphate	C00009	NaN																	
-concentration	Pyruvate	C00022	0.39																	
-concentration	NADPplus	C00006	0.00208																	
-concentration	NADPH	C00005	0.121																	
-concentration	NADH	C00004	0.0832																	
-concentration	NADplus	C00003	2.55																	
-concentration	ATP	C00002	9.63																	
-concentration	H2O	C00001	NaN																	
-concentration	_2_Oxoglutarate	C00026	0.443																	
-concentration	Oxaloacetate	C00036	NaN																	
-concentration	Ubiquinone	C00399	NaN																	
-concentration	D_Erythrose_4_phosphate	C00279	NaN																	
-concentration	Ubiquinol	C00390	NaN																	
-concentration	ADP	C00008	0.555																	
-concentration	Isocitrate	C00311	0.02																	
-concentration	D_Ribulose_5_phosphate	C00199	NaN																	
-concentration	D_Xylulose_5_phosphate	C00231	NaN																	
-concentration	D_Glucose_6_phosphate	C00092	8.75																	
-concentration	_3_Phospho_D_glyceroyl_phosphate	C00236	NaN																	
-concentration	CoA	C00010	1.37																	
-concentration	CO2	C00011	NaN																	
-concentration	D_Ribose_5_phosphate	C00117	1.32																	
-concentration	Glycerone_phosphate	C00111	0.374																	
-concentration	D_Glucose	C00031	17.4																	
-concentration	D_Fructose_1_6_bisphosphate	C00354	15.2																	
-concentration	D_Glyceraldehyde_3_phosphate	C00118	NaN																	
-concentration	Phosphoenolpyruvate	C00074	0.184																	
-concentration	Citrate	C00158	1.96																	
-concentration	Succinyl_CoA	C00091	0.233																	
-concentration	_3_Phospho_D_glycerate	C00197	1.54																	
-concentration	D_Glucono_1_5_lactone_6_phosphate	C01236	NaN																	
-concentration	D_Fructose_6_phosphate	C00085	NaN																	
-concentration	_2_Phospho_D_glycerate	C00631	NaN																	
-concentration	Succinate	C00042	0.569																	
-concentration	Sedoheptulose_7_phosphate	C05382	NaN																	
-concentration	Acetate	C00033	NaN																	
-concentration	Acetyl_phosphate	C00227	NaN																	
-concentration	Glyoxylate	C00048	NaN																	
-concentration	_2_Keto_3_deoxy_6_phospho_gluconate	C04442	NaN																	
-concentration	HCO3	C00288	NaN																	
+!QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration	Wolf's data	NCM3722 (0)	NCM3722 (400)	NQ1243 (400)	NQ1243 (100)	NQ1243 (0)	NQ1390 (400)	NQ1390 (100)	NQ1390 (40)	NCM3722 (0)	NCM3722 (100)	NQ393 (100)	NQ393 (50)	NQ393 (40)	NQ393 (30)	NQ393 (20)	NQ393 (10)
+concentration	_S__Malate	C00149	1.68000	1.68000	1.73954	2.01522	1.91401	1.11889	0.53071	0.97868	0.60610	0.18249	2.14515	1.79113	2.02935	3.39793	3.31634	3.29548	2.50332	2.23520
+concentration	Acetyl_CoA	C00024	0.60600	0.60600	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Fumarate	C00122	0.11500	0.11500	0.36014	0.43848	0.42986	0.23281	0.15682	0.20549	0.12892	0.05485	0.52084	0.40111	0.48756	1.16325	1.12284	1.07427	0.85601	0.77967
+concentration	cis_Aconitate	C00417	0.01610	0.01610	0.01257	0.01158	0.01195	0.01041	0.00917	0.00823	0.00757	0.00458	0.01286	0.01009	0.03250	0.02713	0.02983	0.04192	0.04643	0.10247
+concentration	_6_Phospho_D_gluconate	C00345	3.81000	3.81000	2.24132	1.88465	1.68319	2.02255	2.17663	1.15009	1.15397	1.23684	2.55154	1.83226	1.79296	0.05577	0.03127	0.02533	0.03461	0.04302
+concentration	Orthophosphate	C00009	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Pyruvate	C00022	0.39000	0.39000	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	NADPplus	C00006	0.00208	0.00208	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	NADPH	C00005	0.12100	0.12100	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	NADH	C00004	0.08320	0.08320	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	NADplus	C00003	2.55000	2.55000	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	ATP	C00002	9.63000	9.63000	2.52841	3.30338	3.25541	2.87162	4.04021	3.39489	3.29430	3.38069	3.49820	2.96123	2.28297	2.54119	1.86323	2.71931	1.28409	1.15331
+concentration	H2O	C00001	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	_2_Oxoglutarate	C00026	0.44300	0.44300	0.30249	0.23799	0.25181	0.36089	0.53238	0.40028	0.45251	0.40881	0.44940	0.35104	NaN	NaN	2.05140	2.05944	1.38315	9.11017
+concentration	Oxaloacetate	C00036	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Ubiquinone	C00399	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	D_Erythrose_4_phosphate	C00279	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Ubiquinol	C00390	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	ADP	C00008	0.55500	0.55500	0.46435	0.52209	0.60545	0.56554	0.70329	0.57031	0.62809	0.64744	0.68482	0.55412	0.60638	0.45853	0.32021	0.34179	0.22361	0.23572
+concentration	Isocitrate	C00311	0.02000	0.02000	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	D_Ribulose_5_phosphate	C00199	NaN	NaN	0.26129	0.30742	0.24907	0.19516	0.24656	0.20091	0.17890	0.21301	0.28434	0.24092	0.29935	0.12341	0.12045	0.13032	0.14410	0.11420
+concentration	D_Xylulose_5_phosphate	C00231	NaN	NaN	0.15624	0.14808	0.11982	0.09027	0.17760	0.12334	0.13277	0.12158	0.15012	0.15062	0.14894	0.05130	0.04406	0.07826	0.06085	0.06916
+concentration	D_Glucose_6_phosphate	C00092	8.75000	8.75000	1.24798	1.16496	0.93771	1.12476	1.52420	1.15566	1.06285	1.07109	1.19833	1.06103	1.10724	0.89620	0.95298	1.06270	1.01813	0.98954
+concentration	_3_Phospho_D_glyceroyl_phosphate	C00236	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	CoA	C00010	1.37000	1.37000	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	CO2	C00011	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	D_Ribose_5_phosphate	C00117	1.32000	1.32000	0.16941	0.16249	0.14081	0.13086	0.16043	0.12432	0.11338	0.13045	0.17176	0.14955	0.17392	0.07594	0.06347	0.08425	0.07922	0.08465
+concentration	Glycerone_phosphate	C00111	0.37400	0.37400	1.01374	1.16629	1.15394	0.74217	0.70017	0.75316	0.60365	0.34405	1.22867	0.98227	1.13235	1.04181	0.89435	0.96338	0.73593	0.62724
+concentration	D_Glucose	C00031	17.40000	17.40000	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	D_Fructose_1_6_bisphosphate	C00354	15.20000	15.20000	2.43698	2.79485	2.70120	1.98214	1.56287	1.76740	1.14491	0.54148	3.12817	2.42843	3.97430	2.18998	1.77358	2.23308	1.52527	1.09296
+concentration	D_Glyceraldehyde_3_phosphate	C00118	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Phosphoenolpyruvate	C00074	0.18400	0.18400	0.10289	0.13602	0.15331	0.11101	0.22329	0.24642	0.37496	0.45036	0.16146	0.13566	0.16069	0.12139	0.10358	0.10879	0.07877	0.07007
+concentration	Citrate	C00158	1.96000	1.96000	0.62778	0.67053	0.63956	0.53686	0.43997	0.41141	0.30862	0.22797	0.73777	0.67025	0.74141	0.88247	0.93116	1.08835	1.10372	1.19230
+concentration	Succinyl_CoA	C00091	0.23300	0.23300	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	_3_Phospho_D_glycerate	C00197	1.54000	1.54000	0.84917	1.02898	1.03596	0.93564	1.32391	1.26555	1.52159	1.72492	1.15463	0.91943	1.06238	0.74599	0.59423	0.63016	0.47064	0.42649
+concentration	D_Glucono_1_5_lactone_6_phosphate	C01236	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	D_Fructose_6_phosphate	C00085	NaN	NaN	0.47126	0.76402	0.44156	0.30895	0.38590	0.43992	0.49929	0.42536	0.58566	0.48785	0.80151	0.57349	0.67531	0.77229	0.88603	0.76003
+concentration	_2_Phospho_D_glycerate	C00631	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Succinate	C00042	0.56900	0.56900	0.78116	1.10392	0.88853	0.59963	0.56136	0.57114	0.43657	0.31675	1.60982	1.24576	1.62338	1.71297	1.42662	1.31219	1.25630	1.56170
+concentration	Sedoheptulose_7_phosphate	C05382	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Acetate	C00033	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Acetyl_phosphate	C00227	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	Glyoxylate	C00048	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	_2_Keto_3_deoxy_6_phospho_gluconate	C04442	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+concentration	HCO3	C00288	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN	NaN
 !!SBtab TableName='EnzymeConcentration' TableType='Quantity' Unit='mM'																				
 !QuantityType	!Reaction	!Reaction:Identifiers:kegg.reaction	!EnzymeConcentration	Wolf's data	NQ381 (400)	NQ381 (500)	NQ381 (800)	NCM3722												
 concentration of enzyme	PTS_RPTSsy	RPTSsy	NaN	0.00528	NaN	NaN	NaN	NaN												

@@ -20,7 +20,7 @@ from errors import ThermodynamicallyInfeasibleError
 
 class ECMmodel(object):
     
-    def __init__(self, sbtab_fpath, thermo_mode='CC'):
+    def __init__(self, sbtab_fpath):
         self._sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
             'Compound:Identifiers:kegg.compound', 'Compound')
@@ -31,7 +31,7 @@ class ECMmodel(object):
             'Compound', 'Compound:Identifiers:kegg.compound', 'External',
             value_mapping=bool)
 
-        # read the lower and upper bounds. assume they are given in mM
+        # read the lower and upper bounds. assume they are given in M
         self.cid2min_bound = self._sbtab_dict.GetDictFromTable(
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
             value_mapping=float)
@@ -42,14 +42,14 @@ class ECMmodel(object):
         self.kegg_model.check_S_balance()
         cc = ComponentContribution.init()
         self.kegg_model.add_thermo(cc)
-        self._CalcGibbsEneriges(mode=thermo_mode) # mode can be: 'CC', 'KEQ', 'DG0'
+        self._CalcGibbsEneriges()
         
-        rid2keq, rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
+        rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
             ECMmodel._ReadKineticParameters(self._sbtab_dict)
         
-        # flux is assumed to be given in mM/s, converting it to M/s
+        # flux is assumed to be given in M/s
         rid2flux = self._sbtab_dict.GetDictFromTable(
-            'Flux', 'Reaction', 'Flux', value_mapping=lambda x: float(x)*1e-3)
+            'Flux', 'Reaction', 'Flux', value_mapping=lambda x: float(x))
         
         S = self.kegg_model.S
         flux = np.matrix(map(rid2flux.get, self.kegg_model.rids)).T
@@ -59,7 +59,7 @@ class ECMmodel(object):
                                     self.kegg_model.rids, rid_cid2KMM)
         c_bounds = np.array(zip(map(self.cid2min_bound.get, self.kegg_model.cids),
                                 map(self.cid2max_bound.get, self.kegg_model.cids)))
-        lnC_bounds = np.log(c_bounds * 1e-3) # convert from mM to M
+        lnC_bounds = np.log(c_bounds) # assume bounds are in M
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
                                       lnC_bounds=lnC_bounds, ecf_version='ECF3')
     
@@ -94,7 +94,6 @@ class ECMmodel(object):
                 'Reaction',
                 'Unit']
 
-        rid2keq = {}       # equilibrium constants [unitless]
         rid2crc_gmean = {} # catalytic rate constant geomertic mean [1/s]
         rid2crc_fwd = {}   # catalytic rate constant forward [1/s]
         rid2crc_rev = {}   # catalytic rate constant reverse [1/s]
@@ -114,8 +113,6 @@ class ECMmodel(object):
                         raise AssertionError('Catalytic rate constants must be '
                                              'in units of 1/s, not %s' % unit)
                     crctype2dict[typ][rid] = val
-                elif typ == 'equilibrium constant':
-                    rid2keq[rid] = val
                 elif typ == 'Michaelis constant':
                     if unit == 'mM':
                         rid_cid2KMM[rid, cid] = val * 1e-3
@@ -129,22 +126,17 @@ class ECMmodel(object):
                 raise ValueError('Syntax error in SBtab table %s, row %d - %s' %
                                  (table_name, i, str(e)))
                 
-        return rid2keq, rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM
+        return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM
 
-    def _CalcGibbsEneriges(self, mode='CC'):
-        if mode == 'CC':
-            dG0_prime, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
-            self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
-        elif mode == 'KEQ':
-            # loading the standard Gibbs energies from the SBtab file (for legacy reasons)
-            # basically, we don't need them because we can get the same data
-            # from component-contribution directly
+    def _CalcGibbsEneriges(self):
+        dG0_prime, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
+        self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
 
-            rid2keq, _, _, _, _ = ECMmodel._ReadKineticParameters(self._sbtab_dict)
-            self.rid2dG0 = {rid: -RT*np.log(keq) for (rid, keq) in rid2keq.iteritems()}
-        elif mode == 'DG0':
-            self.rid2dG0 = self._sbtab_dict.GetDictFromTable(
-                'GibbsEnergyOfReaction', 'Reaction', 'dG0', value_mapping=float)
+        # legacy code - read the dG0 from the SBtab itself rather than calculating
+        # it using CC
+        #
+        #self.rid2dG0 = self._sbtab_dict.GetDictFromTable(
+        #    'GibbsEnergyOfReaction', 'Reaction', 'dG0', value_mapping=float)
     
     @staticmethod
     def _GenerateKMM(cids, rids, rid_cid2KMM):
@@ -214,13 +206,13 @@ class ECMmodel(object):
         # assume concentrations are in mM
         return self._sbtab_dict.GetDictFromTable(
             'Concentration', 'Compound:Identifiers:kegg.compound',
-            'Concentration', value_mapping=lambda x: (float(x) * 1e-3))
+            'Concentration', value_mapping=float)
         
     def _GetMeasuredEnzymeConcentrations(self):
         # assume concentrations are in mM
         return self._sbtab_dict.GetDictFromTable(
             'EnzymeConcentration', 'Reaction',
-            'EnzymeConcentration', value_mapping=lambda x: (float(x) * 1e-3))
+            'EnzymeConcentration', value_mapping=float)
 
     def ValidateMetaboliteConcentrations(self, lnC, ax):
         pred_conc = np.exp(lnC)

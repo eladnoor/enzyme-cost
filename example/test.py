@@ -15,7 +15,7 @@ pandas.options.display.mpl_style = 'default'
 #fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_karl.tsv')
 fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_ecoli_aerobic.tsv')
 
-model = ECMmodel(fpath, thermo_mode='CC')
+model = ECMmodel(fpath)
 model.WriteMatFile('res/karl.mat')
 
 lnC_MDF = model.MDF()
@@ -28,19 +28,19 @@ model.PlotEnzymeCosts(lnC_MDF, ax_MDF)
 ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
 model.PlotEnzymeCosts(lnC_ECM, ax_ECM)
 fig1.show()
+fig1.savefig('res/hist.pdf')
 
 fig2 = plt.figure(figsize=(10, 10))
 fig2.suptitle('Metabolite Concentrations')
-ax = fig2.add_subplot(1, 1, 1)
+ax = fig2.add_subplot(1, 1, 1, xscale='log', yscale='log')
 model.ValidateMetaboliteConcentrations(lnC_ECM, ax)
 fig2.show()
 
 fig3 = plt.figure(figsize=(10, 10))
 fig3.suptitle('Enzyme Concentrations')
-ax = fig3.add_subplot(1, 1, 1)
+ax = fig3.add_subplot(1, 1, 1, xscale='log', yscale='log')
 model.ValidateEnzymeConcentrations(lnC_ECM, ax)
 fig3.show()
-
 
 met_conc = np.exp(lnC_ECM)
 

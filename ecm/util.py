@@ -86,6 +86,10 @@ def ParseReaction(formula, arrow='<=>'):
     return sparse_reaction
 
 def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
+    """
+        scale - if 'log' indicates that the regression should be done on the
+                logscale data.
+    """
     x = CastToColumnVector(x)
     y = CastToColumnVector(y)
     
@@ -103,10 +107,9 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
         ax.set_yscale('linear')
         slope, intercept, r_value, p_value, std_err = \
             stats.linregress(x[mask], y[mask])
-        
     ax.plot(x[mask], y[mask], 'o', color='red', alpha=0.7)
     ax.plot(x[~mask], y[~mask], 'o', color='blue', alpha=0.4)
-
+        
     v_min = min(np.nanmin(x[mask]), np.nanmin(y[mask]))
     v_max = max(np.nanmax(x[mask]), np.nanmax(y[mask]))
     ax.plot([v_min, v_max], [v_min, v_max], '--', color=(0.2, 0.2, 0.2))
