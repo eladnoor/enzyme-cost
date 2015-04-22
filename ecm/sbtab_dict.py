@@ -5,7 +5,7 @@ Created on Wed Apr 15 17:47:12 2015
 @author: noore
 """
 from SBtabTools import oneOrMany
-from SBtab import SBtabTable
+from SBtab import SBtabTable, SBtabError
 from tablibIO import loadTSV
 
 class SBtabDict(dict):
@@ -55,3 +55,17 @@ class SBtabDict(dict):
         keys, vals = zip(*self.GetColumnsFromTable(table_name, column_names))
         return dict(zip(keys, map(value_mapping, vals)))
         
+    def GetTableAttribute(self, table_name, attribute_name):
+        """
+            Arguments:
+                table_name     - the name of the table in the SBtab file (without '!!')
+                attribute_name - a string with the attribute name
+                
+            Returns:
+                A string containing the value of the attribute in that table,
+                or None if the attribute does not exist
+        """
+        try:
+            return self[table_name].getCustomTableInformation(attribute_name)
+        except SBtabError:
+            return None

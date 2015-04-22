@@ -10,13 +10,14 @@ from component_contribution.kegg_reaction import KeggReaction
 from component_contribution.kegg_model import KeggModel
 from component_contribution.component_contribution import ComponentContribution
 import numpy as np
-from component_contribution.thermodynamic_constants import default_RT as RT
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat
 import colors
 from util import ParseReaction, PlotCorrelation
 import logging
 from errors import ThermodynamicallyInfeasibleError
+
+CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/content/241/10/2200.full.pdf+html]
 
 class ECMmodel(object):
     
@@ -31,13 +32,15 @@ class ECMmodel(object):
             'Compound', 'Compound:Identifiers:kegg.compound', 'External',
             value_mapping=bool)
 
-        # read the lower and upper bounds. assume they are given in M
+        # read the lower and upper bounds and convert them to M
+        bound_units = self._sbtab_dict.GetTableAttribute('ConcentrationConstraint', 'Unit')
+        bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
         self.cid2min_bound = self._sbtab_dict.GetDictFromTable(
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
-            value_mapping=float)
+            value_mapping=bound_mapping)
         self.cid2max_bound = self._sbtab_dict.GetDictFromTable(
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
-            value_mapping=float)
+            value_mapping=bound_mapping)
 
         self.kegg_model.check_S_balance()
         cc = ComponentContribution.init()
@@ -47,12 +50,14 @@ class ECMmodel(object):
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
             ECMmodel._ReadKineticParameters(self._sbtab_dict)
         
-        # flux is assumed to be given in M/s
-        rid2flux = self._sbtab_dict.GetDictFromTable(
-            'Flux', 'Reaction', 'Flux', value_mapping=lambda x: float(x))
+        # read flux values and convert them to M/s
+        flux_units = self._sbtab_dict.GetTableAttribute('Flux', 'Unit')
+        flux_mapping = ECMmodel._MappingToCanonicalFluxUnits(flux_units)
+        self.rid2flux = self._sbtab_dict.GetDictFromTable(
+            'Flux', 'Reaction', 'Flux', value_mapping=flux_mapping)
         
         S = self.kegg_model.S
-        flux = np.matrix(map(rid2flux.get, self.kegg_model.rids)).T
+        flux = np.matrix(map(self.rid2flux.get, self.kegg_model.rids)).T
         kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
         dG0 = np.matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
@@ -114,12 +119,8 @@ class ECMmodel(object):
                                              'in units of 1/s, not %s' % unit)
                     crctype2dict[typ][rid] = val
                 elif typ == 'Michaelis constant':
-                    if unit == 'mM':
-                        rid_cid2KMM[rid, cid] = val * 1e-3
-                    elif unit == 'M':
-                        rid_cid2KMM[rid, cid] = val
-                    else:
-                        raise AssertionError('Michaelis constants must be in M or mM')
+                    value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
+                    rid_cid2KMM[rid, cid] = value_mapping(val)
                 else:
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
             except AssertionError as e:
@@ -200,19 +201,70 @@ class ECMmodel(object):
         ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)
         total = np.prod(ecf_mat, 1).sum()
-        ax.set_title('Total enzyme cost = %.1e [M]' % total)
+        ax.set_title(r'Total enzyme cost = $%.2g \times 10^{-3}$ [M]' % (total*1e3))
     
+    @staticmethod
+    def _MappingToCanonicalConcentrationUnits(unit):
+        """
+            Assuming the canonical units for concentration are Molar
+            
+            Returns:
+                A function that converts a single number or string to the 
+                canonical units
+        """
+        if unit == 'M':
+            return lambda x: float(x)
+        if unit == 'mM':
+            return lambda x: float(x)*1e-3
+        if unit == 'uM':
+            return lambda x: float(x)*1e-6
+        if unit == 'nM':
+            return lambda x: float(x)*1e-9
+        
+        raise ValueError('Cannot convert these units to M: ' + unit)
+    
+    @staticmethod
+    def _MappingToCanonicalFluxUnits(unit):
+        """
+            Assuming the canonical units for concentration are [M/s]
+            
+            Returns:
+                A function that converts a single number or string to the 
+                canonical units
+                
+            Note: CELL_VOL_PER_DW is given in [L/gCDW]
+        """
+        if unit == 'M/s':
+            return lambda x: float(x)
+        if unit == 'mM/s':
+            return lambda x: float(x)*1e-3
+        if unit == 'mmol/gCDW/h':
+            return lambda x: float(x) / (CELL_VOL_PER_DW * 3600 * 1e3)
+        if unit == 'mol/gCDW/h':
+            return lambda x: float(x) / (CELL_VOL_PER_DW * 3600)
+        if unit == 'umol/gCDW/min':
+            return lambda x: float(x) / (CELL_VOL_PER_DW * 60 * 1e6)
+        if unit == 'mmol/gCDW/min':
+            return lambda x: float(x) / (CELL_VOL_PER_DW * 60 * 1e3)
+        
+        raise ValueError('Cannot convert these units to M/s: ' + unit)
+
     def _GetMeasuredMetaboliteConcentrations(self):
+        unit = self._sbtab_dict.GetTableAttribute('Concentration', 'Unit')
+        value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
+        
         # assume concentrations are in mM
         return self._sbtab_dict.GetDictFromTable(
             'Concentration', 'Compound:Identifiers:kegg.compound',
-            'Concentration', value_mapping=float)
+            'Concentration', value_mapping=value_mapping)
         
     def _GetMeasuredEnzymeConcentrations(self):
-        # assume concentrations are in mM
+        unit = self._sbtab_dict.GetTableAttribute('EnzymeConcentration', 'Unit')
+        value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
+
         return self._sbtab_dict.GetDictFromTable(
             'EnzymeConcentration', 'Reaction',
-            'EnzymeConcentration', value_mapping=float)
+            'EnzymeConcentration', value_mapping=value_mapping)
 
     def ValidateMetaboliteConcentrations(self, lnC, ax):
         pred_conc = np.exp(lnC)

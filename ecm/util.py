@@ -101,12 +101,12 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
         ax.set_xscale('log')
         ax.set_yscale('log')
         slope, intercept, r_value, p_value, std_err = \
-            stats.linregress(np.log(x[mask]), np.log(y[mask]))
+            stats.linregress(np.log(x[mask]).flat, np.log(y[mask]).flat)
     else:
         ax.set_xscale('linear')
         ax.set_yscale('linear')
         slope, intercept, r_value, p_value, std_err = \
-            stats.linregress(x[mask], y[mask])
+            stats.linregress(x[mask].flat, y[mask].flat)
     ax.plot(x[mask], y[mask], 'o', color='red', alpha=0.7)
     ax.plot(x[~mask], y[~mask], 'o', color='blue', alpha=0.4)
         
