@@ -24,7 +24,9 @@ class ECMmodel(object):
     def __init__(self, sbtab_fpath):
         self._sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
-            'Compound:Identifiers:kegg.compound', 'Compound')
+            'Compound:Identifiers:kegg.compound', 'NameForPlots')
+        self.kegg2rxn = self._sbtab_dict.GetDictFromTable('Reaction', 
+            'Reaction', 'NameForPlots')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
 
         # a dictionary indicating which compound is external or not
@@ -165,44 +167,6 @@ class ECMmodel(object):
     def ECF(self, lnC):
         return self.ecf.ECF(lnC)
         
-    def PlotEnzymeCosts(self, lnC, ax, top_level=3):
-        """
-            A bar plot in log-scale showing the partitioning of cost between
-            the levels of kinetic costs:
-            1 - capacity
-            2 - thermodynamics
-            3 - saturation
-            4 - allosteric
-        """
-        assert top_level in [1, 2, 3, 4]
-        
-        ecf_mat = self.ecf.GetEnzymeCostPartitions(lnC)
-        datamat = np.log(ecf_mat)
-        base = min(datamat[np.isfinite(datamat)].flat) - 1
-        bottoms = np.hstack([np.ones((datamat.shape[0], 1)) * base,
-                             np.cumsum(datamat, 1)])
-        bottoms = np.exp(bottoms)
-        steps = np.diff(bottoms)
-        
-        labels = ['capacity', 'thermodynamic', 'saturation', 'allosteric']
-        labels = labels[0:top_level]
-
-        ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
-        width = 0.7
-        cmap = colors.ColorMap(labels, saturation=0.5, value=0.8)
-        ax.set_yscale('log')
-        for i, label in enumerate(labels):
-            ax.bar(ind, steps[:, i], width,
-                   bottom=bottoms[:, i], color=cmap[label],
-                   alpha=1.0)
-        ax.set_xticks(ind + width/2, self.kegg_model.rids)
-        ax.legend(labels, loc='best', framealpha=0.2)
-        ax.set_xlabel('reaction')
-        ax.set_ylabel('enzyme cost [M]')
-        ax.set_ylim(ymin=base)
-        total = np.prod(ecf_mat, 1).sum()
-        ax.set_title(r'Total enzyme cost = $%.2g \times 10^{-3}$ [M]' % (total*1e3))
-    
     @staticmethod
     def _MappingToCanonicalConcentrationUnits(unit):
         """
@@ -266,6 +230,46 @@ class ECMmodel(object):
             'EnzymeConcentration', 'Reaction',
             'EnzymeConcentration', value_mapping=value_mapping)
 
+    def PlotEnzymeCosts(self, lnC, ax, top_level=3):
+        """
+            A bar plot in log-scale showing the partitioning of cost between
+            the levels of kinetic costs:
+            1 - capacity
+            2 - thermodynamics
+            3 - saturation
+            4 - allosteric
+        """
+        assert top_level in range(1, 5)
+        
+        ecf_mat = self.ecf.GetEnzymeCostPartitions(lnC)
+        datamat = np.log(ecf_mat)
+        base = min(datamat[np.isfinite(datamat)].flat) - 1
+        bottoms = np.hstack([np.ones((datamat.shape[0], 1)) * base,
+                             np.cumsum(datamat, 1)])
+        bottoms = np.exp(bottoms)
+        steps = np.diff(bottoms)
+        
+        labels = ['capacity', 'thermodynamic', 'saturation', 'allosteric']
+        labels = labels[0:top_level]
+
+        ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
+        width = 0.7
+        cmap = colors.ColorMap(labels, saturation=0.5, value=0.8)
+        ax.set_yscale('log')
+        for i, label in enumerate(labels):
+            ax.bar(ind, steps[:, i], width,
+                   bottom=bottoms[:, i], color=cmap[label],
+                   alpha=1.0)
+        ax.set_xticks(ind + width/2)
+        xticks = map(self.kegg2rxn.get, self.kegg_model.rids)
+        ax.set_xticklabels(xticks, size='medium', rotation=45)
+        ax.legend(labels, loc='best', framealpha=0.2)
+        #ax.set_xlabel('reaction')
+        ax.set_ylabel('enzyme cost [M]')
+        ax.set_ylim(ymin=base)
+        total = np.prod(ecf_mat, 1).sum()
+        ax.set_title(r'Total enzyme cost = %.2f $\times$ $10^{-3}$ [M]' % (total*1e3))
+    
     def ValidateMetaboliteConcentrations(self, lnC, ax):
         pred_conc = np.exp(lnC)
 
@@ -288,10 +292,32 @@ class ECMmodel(object):
         
         mask = (pred_conc > 0) & (meas_conc > 0)
 
-        PlotCorrelation(ax, meas_conc, pred_conc, self.kegg_model.rids, mask)
+        labels = map(self.kegg2rxn.get, self.kegg_model.rids)
+        PlotCorrelation(ax, meas_conc, pred_conc, labels, mask)
 
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
+
+    def WriteHtmlTables(self, lnC, html):
+        met_conc = dict(zip(self.kegg_model.cids, np.exp(lnC).flat))
+        cid2lower_bound = dict(zip(self.kegg_model.cids, np.exp(self.ecf.lnC_bounds[:, 0].flat)))
+        cid2upper_bound = dict(zip(self.kegg_model.cids, np.exp(self.ecf.lnC_bounds[:, 1].flat)))
+        enz_conc = dict(zip(self.kegg_model.rids, self.ecf.ECF(lnC).flat))
+        driving_forces = dict(zip(self.kegg_model.rids, self.ecf._DrivingForce(lnC).flat))
         
-    def GetGibbsEnergies(self, lnC):
-        pass
+        headers = ['Reaction', 'KEGG ID', 'flux [mM/s]', 'enzyme conc. [uM]',
+                   'Driving force [kJ/mol]']
+        values = [(self.kegg2rxn[r], r, self.rid2flux[r]*1e3, enz_conc[r]*1e6,
+                   driving_forces[r])
+                  for r in self.kegg_model.rids]
+        rowdicst = [dict(zip(headers, v)) for v in values]
+        html.write_table(rowdicst, headers=headers, decimal=3)
+        
+        headers = ['Compound', 'KEGG ID', 'Concentration [M]',
+                   'Lower bound [M]', 'Upper bound [M]']
+        values = [(self.kegg2met[cid], cid, '%.2e' % met_conc[cid],
+                   '%.2e' % cid2lower_bound[cid], '%.2e' % cid2upper_bound[cid])
+                  for cid in self.kegg_model.cids]
+        rowdicst = [dict(zip(headers, v)) for v in values]
+        html.write_table(rowdicst, headers=headers)
+

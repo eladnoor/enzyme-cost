@@ -260,7 +260,8 @@ class EnzymeCostFunction(object):
         assert lnC0.shape == (self.Nc, 1)
 
         bounds = zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat)
-        res = minimize(optfun, lnC0, bounds=bounds, method='TNC')
+        res = minimize(optfun, lnC0, bounds=bounds, method='SLSQP')
+        #res = minimize(optfun, lnC0, bounds=bounds, method='TNC')
         
         if not res.success:
             print res

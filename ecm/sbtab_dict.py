@@ -15,6 +15,7 @@ class SBtabDict(dict):
             Arguments:
                 sbtab_list - a list of SBtabTable objects
         """
+        self.fpath = ''
         self.sbtab_list = sbtab_list
         for m in sbtab_list:
             self[m.table_name] = m
@@ -24,7 +25,9 @@ class SBtabDict(dict):
         spreadsheet_file = loadTSV(fpath, False)
         m = oneOrMany(spreadsheet_file)
         sbtab_list = [SBtabTable(dset, fpath) for dset in m]
-        return SBtabDict(sbtab_list)
+        sbtab_dict = SBtabDict(sbtab_list)
+        sbtab_dict.fpath = fpath
+        return sbtab_dict
 
     def GetColumnFromTable(self, table_name, column_name):
         """
@@ -46,12 +49,18 @@ class SBtabDict(dict):
                 a list of lists containing the values corresponding to the
                 columns in 'column_names' in the table 'table_name'
         """
-        idxs = [self[table_name].columns_dict['!' + c] for c in column_names]
+        try:
+            idxs = [self[table_name].columns_dict['!' + c] for c in column_names]
+        except KeyError as e:
+            all_columns = ', '.join(self[table_name].columns_dict.keys())
+            raise KeyError('Cannot find the column %s in table "%s" in file %s. '
+                           'Columns are: %s'
+                           % (e, table_name, self.fpath, all_columns))
         return [map(r.__getitem__, idxs) for r in self[table_name].getRows()]
         
     def GetDictFromTable(self, table_name, key_column_name, value_column_name,
                          value_mapping=None):
-        column_names = [key_column_name, value_column_name]   
+        column_names = [key_column_name, value_column_name]
         keys, vals = zip(*self.GetColumnsFromTable(table_name, column_names))
         return dict(zip(keys, map(value_mapping, vals)))
         
