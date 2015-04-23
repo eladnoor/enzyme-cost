@@ -252,12 +252,14 @@ class EnzymeCostFunction(object):
         
         def optfun(lnC):
             lnC = CastToColumnVector(lnC)
-            e = self.ECF(lnC).sum(axis=0)[0,0]
-            if np.isnan(e):
-                return 1e5
-            else:
-                #print np.log(e)
+            minimal_df = self._DrivingForce(lnC).min()
+            if minimal_df > 0: # all reactions are feasible
+                e = self.ECF(lnC).sum(axis=0)[0,0]
+                if np.isnan(e):
+                    raise Exception('ECF returns NaN although all reactions are feasible')
                 return np.log(e)
+            else: # give a large penalty proportional to the negative driving force
+                return 1e20 * abs(minimal_df)
                 
         assert lnC0.shape == (self.Nc, 1)
 
