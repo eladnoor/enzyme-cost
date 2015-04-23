@@ -286,7 +286,7 @@ concentration	NADplus	C00003	0.001	0.001
 concentration	ATP	C00002	0.005	0.005		
 concentration	H2O	C00001	1	1		
 concentration	_2_Oxoglutarate	C00026	0.000001	0.01		
-concentration	Oxaloacetate	C00036	0.000000001	0.01		
+concentration	Oxaloacetate	C00036	0.000001	0.01		
 concentration	Ubiquinone	C00399	0.0001	0.0001		
 concentration	D_Erythrose_4_phosphate	C00279	0.000001	0.01		
 concentration	Ubiquinol	C00390	0.0001	0.0001		
@@ -295,7 +295,7 @@ concentration	Isocitrate	C00311	0.000001	0.01
 concentration	D_Ribulose_5_phosphate	C00199	0.000001	0.01		
 concentration	D_Xylulose_5_phosphate	C00231	0.000001	0.01		
 concentration	D_Glucose_6_phosphate	C00092	0.000001	0.01		
-concentration	_3_Phospho_D_glyceroyl_phosphate	C00236	0.000000001	0.01		
+concentration	_3_Phospho_D_glyceroyl_phosphate	C00236	0.000001	0.01		
 concentration	CoA	C00010	0.001	0.001		
 concentration	CO2	C00011	0.00001	0.00001		
 concentration	D_Ribose_5_phosphate	C00117	0.000001	0.01		

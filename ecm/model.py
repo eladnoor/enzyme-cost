@@ -68,7 +68,7 @@ class ECMmodel(object):
                                 map(self.cid2max_bound.get, self.kegg_model.cids)))
         lnC_bounds = np.log(c_bounds) # assume bounds are in M
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
-                                      lnC_bounds=lnC_bounds, ecf_version='ECF3')
+                                      lnC_bounds=lnC_bounds, ecf_version='ECF3SP')
     
     def WriteMatFile(self, file_name):
         mdict = self.ecf.Serialize()
@@ -249,8 +249,7 @@ class ECMmodel(object):
         bottoms = np.exp(bottoms)
         steps = np.diff(bottoms)
         
-        labels = ['capacity', 'thermodynamic', 'saturation', 'allosteric']
-        labels = labels[0:top_level]
+        labels = EnzymeCostFunction.ECF_LEVEL_NAMES[0:top_level]
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
         width = 0.7
@@ -299,25 +298,45 @@ class ECMmodel(object):
         ax.set_ylabel('predicted [M]')
 
     def WriteHtmlTables(self, lnC, html):
-        met_conc = dict(zip(self.kegg_model.cids, np.exp(lnC).flat))
-        cid2lower_bound = dict(zip(self.kegg_model.cids, np.exp(self.ecf.lnC_bounds[:, 0].flat)))
-        cid2upper_bound = dict(zip(self.kegg_model.cids, np.exp(self.ecf.lnC_bounds[:, 1].flat)))
-        enz_conc = dict(zip(self.kegg_model.rids, self.ecf.ECF(lnC).flat))
-        driving_forces = dict(zip(self.kegg_model.rids, self.ecf._DrivingForce(lnC).flat))
+        meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
+        meas_conc = np.matrix(map(lambda r: meas_enz2conc.get(r, np.nan), self.kegg_model.rids)).T
+        data_mat = np.hstack([self.ecf.flux,
+                              meas_conc,
+                              self.ecf.ECF(lnC), 
+                              self.ecf._DrivingForce(lnC),
+                              self.ecf.GetEnzymeCostPartitions(lnC)])
+                             
+        data_mat[:, 0] *= 1e3 # convert flux from M/s to mM/s
+        data_mat[:, 1] *= 1e6 # convert measured enzyme conc. from M to uM
+        data_mat[:, 2] *= 1e6 # convert predicted enzyme conc. from M to uM
+        data_mat[:, 4] *= 1e6 # convert capacity term from M to uM
         
-        headers = ['Reaction', 'KEGG ID', 'flux [mM/s]', 'enzyme conc. [uM]',
-                   'Driving force [kJ/mol]']
-        values = [(self.kegg2rxn[r], r, self.rid2flux[r]*1e3, enz_conc[r]*1e6,
-                   driving_forces[r])
-                  for r in self.kegg_model.rids]
+        headers = ['reaction', 'KEGG ID', 'flux [mM/s]',
+                   'measured enz. conc. [uM]',
+                   'predicted enz. conc. [uM]',
+                   'driving force [kJ/mol]', 'capacity [uM]'] + \
+                   EnzymeCostFunction.ECF_LEVEL_NAMES[1:]
+        values = zip(map(self.kegg2rxn.get, self.kegg_model.rids),
+                     self.kegg_model.rids,
+                     *data_mat.T.tolist())
+        
         rowdicst = [dict(zip(headers, v)) for v in values]
         html.write_table(rowdicst, headers=headers, decimal=3)
+
+        meas_met2conc = self._GetMeasuredMetaboliteConcentrations()
+        meas_conc = np.matrix(map(lambda r: meas_met2conc.get(r, np.nan), self.kegg_model.cids)).T
+        data_mat = np.hstack([meas_conc,
+                              np.exp(lnC),
+                              np.exp(self.ecf.lnC_bounds)]) 
         
-        headers = ['Compound', 'KEGG ID', 'Concentration [M]',
-                   'Lower bound [M]', 'Upper bound [M]']
-        values = [(self.kegg2met[cid], cid, '%.2e' % met_conc[cid],
-                   '%.2e' % cid2lower_bound[cid], '%.2e' % cid2upper_bound[cid])
-                  for cid in self.kegg_model.cids]
+        data_mat *= 1e3 # convert all concentrations from M to mM
+
+        headers = ['compound', 'KEGG ID', 'measured conc. [mM]',
+                   'predicted conc. [mM]',
+                   'lower bound [mM]', 'upper bound [mM]']
+        values = zip(map(self.kegg2met.get, self.kegg_model.cids),
+                     self.kegg_model.cids,
+                     *data_mat.T.tolist())
         rowdicst = [dict(zip(headers, v)) for v in values]
         html.write_table(rowdicst, headers=headers)
 

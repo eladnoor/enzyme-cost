@@ -273,7 +273,7 @@ class HtmlWriter(BaseHtmlWriter):
     
     def __del__(self):
         if self.file:
-            self.close()
+            HtmlWriter.close(self)
         
     def close(self):
         BaseHtmlWriter.close(self)

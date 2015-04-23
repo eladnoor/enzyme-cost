@@ -15,6 +15,8 @@ class NonSteadyStateSolutionError(Exception):
     pass
 
 class EnzymeCostFunction(object):
+
+    ECF_LEVEL_NAMES = ['capacity [M]', 'thermodynamic', 'saturation', 'allosteric']
     
     def __init__(self, S, flux, kcat, dG0, KMM, lnC_bounds,
                  A_act=None, A_inh=None, K_act=None, K_inh=None,
@@ -171,7 +173,7 @@ class EnzymeCostFunction(object):
         assert lnC.shape == (self.Nc, 1)
         return np.tile(np.multiply(self.flux, 1.0/self.kcat), (1, lnC.shape[1]))
 
-    def ECF2(self, lnC):
+    def ECF2S(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -188,7 +190,7 @@ class EnzymeCostFunction(object):
         
         return ECF2
 
-    def ECF3(self, lnC):
+    def ECF3SP(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -200,7 +202,7 @@ class EnzymeCostFunction(object):
         """
         # calculate the product of all substrates and products for the kinetic term
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self.ECF2(lnC), 1.0/self._EtaKinetic(lnC))
+        return np.multiply(self.ECF2S(lnC), 1.0/self._EtaKinetic(lnC))
 
     def ECF4(self, lnC):
         """
@@ -213,7 +215,7 @@ class EnzymeCostFunction(object):
                 Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self.ECF3(lnC), 1.0/self._EtaAllosteric(lnC))
+        return np.multiply(self.ECF3SP(lnC), 1.0/self._EtaAllosteric(lnC))
 
     def GetEnzymeCostPartitions(self, lnC):
         """
