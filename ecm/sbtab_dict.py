@@ -78,3 +78,46 @@ class SBtabDict(dict):
             return self[table_name].getCustomTableInformation(attribute_name)
         except SBtabError:
             return None
+            
+    def SBtab2SQL(self, comm):
+        comm.execute("DROP TABLE IF EXISTS __tables__")
+        comm.execute("CREATE TABLE __tables__ (TableName TEXT, TableType TEXT, header TEXT)")
+
+        for m in self.sbtab_list:
+            comm.execute("INSERT INTO __tables__ VALUES(?,?,?)", 
+                         [m.table_name, m.table_type, m.getHeaderRow()])
+                         
+            # get the names of the columns in the right order (i.e. so that
+            # the corresponding column indices will be 0..n)
+            columns, _ = zip(*sorted(m.columns_dict.iteritems(), key=lambda x:x[1]))
+            columns = list(columns)
+            if '' in columns:
+                columns.remove('')
+            columns = map(lambda c: c[1:], columns)
+            
+            col_text = ','.join(['\'%s\' TEXT' % col for col in columns])
+            print col_text
+            comm.execute("DROP TABLE IF EXISTS %s" % m.table_name)
+            comm.execute("CREATE TABLE %s (%s)" % (m.table_name, col_text))
+            
+            ins_command = "INSERT INTO %s VALUES(%s)" % \
+                          (m.table_name, ','.join(["?"]*len(columns)))
+            for row in m.getRows():
+                comm.execute(ins_command, row)
+        
+        comm.commit()
+
+    @staticmethod
+    def SQL2SBtab(comm):
+        """
+            Read all tables from a SQL database into an SBtab object.
+            This function assumed that the database has one table
+            called __tables__ with the relevant header fields for SBtab
+        """
+        assert list(comm.execute("SELECT name FROM sqlite_master WHERE name='__tables__'")) != []
+        table_names, table_types, headers = \
+            zip(*comm.execute("SELECT TableName, TableType, header from __tables__"))
+        
+        for table_name in table_names:
+            table_data = list(comm.execute("SELECT * FROM '%s'" % table_name))
+            print table_name, len(table_data)

@@ -5,7 +5,7 @@ Created on Thu Feb 26 15:01:27 2015
 @author: noore
 """
 import os
-from ecm.ecf import EnzymeCostFunction
+from ecm.cost_function import EnzymeCostFunction
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -66,8 +66,9 @@ K_act[1, 0] = 1e-4
 v = np.matrix(v).T
 kcat = np.matrix(kcat).T
 dG0 = np.matrix(dG0).T
+lnC_bounds = np.matrix([[1e-6] * 4, [1e-2] * 4]).T
 
-ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, A_act, A_inh, K_act, K_inh)
+ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds, A_act, A_inh, K_act, K_inh)
 
 E = np.matrix([0.82, 0.14, 0.05]).T # [g]
 y0_low = np.matrix([np.log(1.2e-5), np.log(1.2e-5)]).T
@@ -95,7 +96,7 @@ E = np.matrix([[0.85-x, 0.10+x, 0.05] for x in np.linspace(0.0, 0.1, 2)]).T # [g
 figs = []
 y0 = np.matrix([np.log(5e-5), np.log(5e-5)]).T
 for i in xrange(E.shape[1]):
-    v = ecf.get_fluxes(lnC, E[:,i:i+1])
+    v = ecf.GetFluxes(lnC, E[:,i:i+1])
     fig = plt.figure(figsize=(6,6))
     ax = fig.add_subplot(1, 1, 1, xscale='log', yscale='log')
     plt.plot(np.exp(lnC[1, :]).flat, (v[0, :] + v[2, :]).flat, label=r'$v_0 + v_2$')
