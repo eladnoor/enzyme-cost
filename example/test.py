@@ -11,14 +11,18 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas
+from ecm.sbtab_dict import SBtabDict
 pandas.options.display.mpl_style = 'default'
 
 html = HtmlWriter('res/karl.html')
 
 #fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_karl.tsv')
-fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_ecoli_aerobic.tsv')
+sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_ecoli_aerobic.tsv')
+sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/ecm_ecoli_aerobic.sqlite')
 
-model = ECMmodel(fpath)
+sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
+#sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
+model = ECMmodel(sbtab_dict)
 #model.WriteMatFile('res/karl.mat')
 
 lnC_MDF = model.MDF()

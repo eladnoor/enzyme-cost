@@ -10,15 +10,15 @@ import sqlite3
 
 sbtab_fname = os.path.expanduser('~/git/enzyme-cost/data/ecm_ecoli_aerobic.tsv')
 sqlite_fname = os.path.expanduser('~/git/enzyme-cost/res/ecm_ecoli_aerobic.sqlite')
-_sbtab_dict = SBtabDict.FromSBtab(sbtab_fname)
 
-comm = sqlite3.connect(sqlite_fname)
-#_sbtab_dict.SBtab2SQL(comm)
+if False:
+    _sbtab_dict = SBtabDict.FromSBtab(sbtab_fname)
+    comm = sqlite3.connect(sqlite_fname)
+    _sbtab_dict.SBtab2SQL(comm)
+    comm.close()
+else:
+    _sbtab_dict = SBtabDict.FromSQLite(sqlite_fname)
 
-_sbtab_dict.SQL2SBtab(comm)
-
-
-comm.close()
 
 # TODO:
 # sqlite -> SBtab export function
