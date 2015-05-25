@@ -117,7 +117,7 @@ class EnzymeCostFunction(object):
             return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - self.S.T * lnC
 
     def _EtaThermodynamic(self, lnC):
-        assert lnC.shape == (self.Nc, 1)
+        assert lnC.shape[0] == self.Nc
         df = self._DrivingForce(lnC)
         
         # replace infeasbile reactions with a positive driving force to avoid negative cost in ECF2
@@ -130,14 +130,14 @@ class EnzymeCostFunction(object):
         return eta_thermo
 
     def _EtaKinetic(self, lnC):
-        assert lnC.shape == (self.Nc, 1)
+        assert lnC.shape[0] == self.Nc
         kin_subs = np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
         kin_prod = np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
         eta_kin = kin_subs/(1.0 + kin_subs + kin_prod)
         return eta_kin        
 
     def _EtaAllosteric(self, lnC):
-        assert lnC.shape == (self.Nc, 1)
+        assert lnC.shape[0] == self.Nc
         kin_act = np.exp(-self.A_act.T * lnC + np.tile(self.act_denom, (1, lnC.shape[1])))
         kin_inh = np.exp(self.A_inh.T * lnC - np.tile(self.inh_denom, (1, lnC.shape[1])))
         eta_kin = 1.0 / (1.0 + kin_act) / (1.0 + kin_inh)
@@ -236,12 +236,12 @@ class EnzymeCostFunction(object):
         return np.hstack([cap, trm, kin, alo])
 
     def GetFluxes(self, lnC, E):
-        assert lnC.shape == (self.Nc, 1)
+        assert lnC.shape[0] == self.Nc
         assert E.shape == (self.Nr, 1)
-        v = np.tile(self.get_vmax(E), (1, lnC.shape[1]))
-        v = np.multiply(v, self.eta_thermodynamic(lnC))
-        v = np.multiply(v, self.eta_kinetic(lnC))
-        v = np.multiply(v, self.eta_allosteric(lnC))
+        v = np.tile(self.GetVmax(E), (1, lnC.shape[1]))
+        v = np.multiply(v, self._EtaThermodynamic(lnC))
+        v = np.multiply(v, self._EtaKinetic(lnC))
+        v = np.multiply(v, self._EtaAllosteric(lnC))
         return v
     
     def ECM(self, lnC0=None):
