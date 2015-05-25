@@ -132,7 +132,7 @@ class ECMmodel(object):
         return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM
 
     def _CalcGibbsEneriges(self):
-        dG0_prime, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
+        dG0_prime, dG0_std, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
         self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
 
         # legacy code - read the dG0 from the SBtab itself rather than calculating

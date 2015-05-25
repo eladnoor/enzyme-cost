@@ -14,11 +14,13 @@ import pandas
 from ecm.sbtab_dict import SBtabDict
 pandas.options.display.mpl_style = 'default'
 
-html = HtmlWriter('res/karl.html')
+exp_name = 'ecm_ecoli_aerobic'
+
+html = HtmlWriter('res/%s.html' % exp_name)
 
 #fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_karl.tsv')
-sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_ecoli_aerobic.tsv')
-sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/ecm_ecoli_aerobic.sqlite')
+sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.tsv' % exp_name)
+sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.sqlite' % exp_name)
 
 sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
 #sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
@@ -49,7 +51,7 @@ model.ValidateEnzymeConcentrations(lnC_ECM, ax)
 fig3.show()
 
 html.write('<p>\n')
-html.write('<b>Input file:</b> %s</br>\n' % fpath)
+html.write('<b>Experiment name:</b> %s</br>\n' % exp_name)
 html.embed_matplotlib_figure(fig1)
 html.write('</p><p>\n')
 html.embed_matplotlib_figure(fig2)

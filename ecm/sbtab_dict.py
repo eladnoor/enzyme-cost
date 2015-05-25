@@ -99,7 +99,7 @@ class SBtabDict(dict):
             columns = map(lambda c: c[1:], columns)
 
             comm.execute("INSERT INTO __tables__ VALUES(?,?,?)", 
-                         [m.table_name, m.table_type, m.getHeaderRow()])
+                         [m.table_name, m.table_type, m._getHeaderRow()])
 
             for i, col in enumerate(columns):
                 comm.execute("INSERT INTO __columns__ VALUES(?,?,?)", 

@@ -14,6 +14,16 @@ from util import CastToColumnVector
 class NonSteadyStateSolutionError(Exception):
     pass
 
+class ThermodynamicallyInfeasibleError(Exception):
+
+    def __init__(self, y=None):
+        if y is None:
+            Exception.__init__(self, 'this reaction system has no feasible solutions')
+        else:
+            Exception.__init__(self, 'y = %s : is thermodynamically infeasible' 
+                                     % str(np.exp(y)))
+    pass
+
 class EnzymeCostFunction(object):
 
     ECF_LEVEL_NAMES = ['capacity [M]', 'thermodynamic', 'saturation', 'allosteric']
@@ -236,8 +246,10 @@ class EnzymeCostFunction(object):
         return np.hstack([cap, trm, kin, alo])
 
     def GetFluxes(self, lnC, E):
+        assert len(lnC.shape) == 2
         assert lnC.shape[0] == self.Nc
         assert E.shape == (self.Nr, 1)
+        
         v = np.tile(self.GetVmax(E), (1, lnC.shape[1]))
         v = np.multiply(v, self._EtaThermodynamic(lnC))
         v = np.multiply(v, self._EtaKinetic(lnC))
@@ -279,3 +291,4 @@ class EnzymeCostFunction(object):
         """
         p = Pathway(self.S, self.flux, self.dG0, self.lnC_bounds)
         return p.FindMDF()
+    
