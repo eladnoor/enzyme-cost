@@ -67,22 +67,7 @@ lnC_bounds[1, 0] = 1e-6
 lnC_bounds[1, 1] = 1e-2
 ecf = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds, A_act, A_inh, K_act, K_inh)
 
-E = np.matrix([0.82, 0.14, 0.05]).T # [g]
-y0_low = np.matrix([np.log(1.2e-5), np.log(1.2e-5)]).T
-y0_high = np.matrix([np.log(4.8e-4), np.log(4.8e-4)]).T
-
-
-#ecf.plot_contour(y0=y0_low)
-#ecf.plot_contour(y0=y0_high)
-#E_low = ecf.ECF(ecf.y_to_lnC(ecf.ECM(y0_low)))
-#E_high = ecf.ECF(ecf.y_to_lnC(ecf.ECM(y0_high)))
-
-#print ecf.simulate(E, y0_low, eps=1e-2, dt=0.01, t_max=30)
-#print ecf.simulate(E, y0_high, eps=1e-2, dt=0.01, t_max=30)
-#sys.exit(0)
-
 ######################################################################
-
 
 lnC = np.log(np.tile(np.matrix([1e-4]*Nc).T, (1, 100)))
 lnC[1, :] = np.linspace(-6, -2, 100) * np.log(10)
@@ -109,12 +94,6 @@ for i in xrange(E.shape[1]):
     ax.set_ylabel(r'$\frac{dy_1}{dt}$ [M/s]')
     figs.append(fig)
 
-    #y_str = ','.join(map(lambda x : '%.1e' % np.exp(x), y0.flat))
-    #fig = EnzymeCostFunction._make_figure('ECM : $y_0$ = <%s> [M]' % y_str, E[:,i:i+1])
-    #ecf.simulate(E[:,i:i+1], y0=y0, figure=fig, eps=1e-2, dt=0.1, t_max=3000)
-    #figs.append(fig)
-
-
 simu = EnzymeCostSimulator(ecf)
 
 lnC0 = np.log(np.matrix([1e-4]*Nc)).T
@@ -138,7 +117,6 @@ ax.set_ylabel(r'$v$ steady state')
 ax.plot(alphas, v_steady, '-g')
 figs.append(fig)
 
-
-pp = PdfPages('res/bistable.pdf')
+pp = PdfPages('res/bistable_feedback.pdf')
 map(pp.savefig, figs)
 pp.close()
