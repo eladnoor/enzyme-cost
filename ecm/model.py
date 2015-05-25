@@ -21,8 +21,8 @@ CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/
 
 class ECMmodel(object):
     
-    def __init__(self, sbtab_fpath):
-        self._sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
+    def __init__(self, sbtab_dict):
+        self._sbtab_dict = sbtab_dict
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
             'Compound:Identifiers:kegg.compound', 'NameForPlots')
         self.kegg2rxn = self._sbtab_dict.GetDictFromTable('Reaction', 

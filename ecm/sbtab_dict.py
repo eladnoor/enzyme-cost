@@ -6,7 +6,9 @@ Created on Wed Apr 15 17:47:12 2015
 """
 from SBtabTools import oneOrMany
 from SBtab import SBtabTable, SBtabError
+import tablib
 from tablibIO import loadTSV
+import sqlite3
 
 class SBtabDict(dict):
     
@@ -81,12 +83,13 @@ class SBtabDict(dict):
             
     def SBtab2SQL(self, comm):
         comm.execute("DROP TABLE IF EXISTS __tables__")
-        comm.execute("CREATE TABLE __tables__ (TableName TEXT, TableType TEXT, header TEXT)")
+        comm.execute("CREATE TABLE __tables__ (TableName TEXT, TableType TEXT, "
+                     "header TEXT)")
+
+        comm.execute("DROP TABLE IF EXISTS __columns__")
+        comm.execute("CREATE TABLE __columns__ (TableName TEXT, idx INT, ColumnName TEXT)")
 
         for m in self.sbtab_list:
-            comm.execute("INSERT INTO __tables__ VALUES(?,?,?)", 
-                         [m.table_name, m.table_type, m.getHeaderRow()])
-                         
             # get the names of the columns in the right order (i.e. so that
             # the corresponding column indices will be 0..n)
             columns, _ = zip(*sorted(m.columns_dict.iteritems(), key=lambda x:x[1]))
@@ -94,12 +97,17 @@ class SBtabDict(dict):
             if '' in columns:
                 columns.remove('')
             columns = map(lambda c: c[1:], columns)
-            
+
+            comm.execute("INSERT INTO __tables__ VALUES(?,?,?)", 
+                         [m.table_name, m.table_type, m.getHeaderRow()])
+
+            for i, col in enumerate(columns):
+                comm.execute("INSERT INTO __columns__ VALUES(?,?,?)", 
+                             [m.table_name, i, col])
+
             col_text = ','.join(['\'%s\' TEXT' % col for col in columns])
-            print col_text
             comm.execute("DROP TABLE IF EXISTS %s" % m.table_name)
             comm.execute("CREATE TABLE %s (%s)" % (m.table_name, col_text))
-            
             ins_command = "INSERT INTO %s VALUES(%s)" % \
                           (m.table_name, ','.join(["?"]*len(columns)))
             for row in m.getRows():
@@ -108,16 +116,37 @@ class SBtabDict(dict):
         comm.commit()
 
     @staticmethod
-    def SQL2SBtab(comm):
+    def FromSQLite(fpath):
         """
             Read all tables from a SQL database into an SBtab object.
             This function assumed that the database has one table
             called __tables__ with the relevant header fields for SBtab
         """
+        comm = sqlite3.connect(fpath)
         assert list(comm.execute("SELECT name FROM sqlite_master WHERE name='__tables__'")) != []
         table_names, table_types, headers = \
             zip(*comm.execute("SELECT TableName, TableType, header from __tables__"))
         
-        for table_name in table_names:
-            table_data = list(comm.execute("SELECT * FROM '%s'" % table_name))
-            print table_name, len(table_data)
+        sbtabs = []
+        for table_name, header in zip(table_names, headers):
+            print table_name
+
+            columns = []
+            for c in comm.execute("SELECT ColumnName from __columns__ WHERE "
+                                  "TableName == '%s' ORDER BY idx" % table_name):
+                columns.append(c[0])
+            
+            print columns
+            
+            sbtab = tablib.Dataset()
+            sbtab.rpush([header] + [''] * (len(columns)-1))
+            sbtab.rpush(map(lambda s: '!' + s, columns))
+            for row in comm.execute("SELECT * FROM '%s'" % table_name):
+                print row
+                sbtab.append(row)
+            sbtabs.append(sbtab)
+
+        sbtab_list = [SBtabTable(dset, fpath) for dset in sbtabs]
+        sbtab_dict = SBtabDict(sbtab_list)
+        sbtab_dict.fpath = fpath
+        return sbtab_dict
