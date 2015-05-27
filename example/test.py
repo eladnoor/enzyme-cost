@@ -8,7 +8,7 @@ Created on Wed Apr  8 10:57:59 2015
 from ecm.model import ECMmodel
 from ecm.html_writer import HtmlWriter
 import os
-import numpy as np
+import sqlite3
 import matplotlib.pyplot as plt
 import pandas
 from ecm.sbtab_dict import SBtabDict
@@ -18,14 +18,18 @@ exp_name = 'ecm_ecoli_aerobic'
 
 html = HtmlWriter('res/%s.html' % exp_name)
 
-#fpath = os.path.expanduser('~/git/enzyme-cost/data/ecm_karl.tsv')
 sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.tsv' % exp_name)
 sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.sqlite' % exp_name)
 
-sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
-#sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
+if not os.path.exists(sqlite_fpath):
+    _sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
+    comm = sqlite3.connect(sqlite_fpath)
+    _sbtab_dict.SBtab2SQL(comm)
+    comm.close()
+
+sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
 model = ECMmodel(sbtab_dict)
-#model.WriteMatFile('res/karl.mat')
+model.WriteMatFile('res/%s.mat' % exp_name)
 
 lnC_MDF = model.MDF()
 lnC_ECM = model.ECM()

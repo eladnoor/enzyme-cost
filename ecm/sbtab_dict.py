@@ -129,20 +129,16 @@ class SBtabDict(dict):
         
         sbtabs = []
         for table_name, header in zip(table_names, headers):
-            print table_name
 
             columns = []
             for c in comm.execute("SELECT ColumnName from __columns__ WHERE "
                                   "TableName == '%s' ORDER BY idx" % table_name):
                 columns.append(c[0])
             
-            print columns
-            
             sbtab = tablib.Dataset()
             sbtab.rpush([header] + [''] * (len(columns)-1))
             sbtab.rpush(map(lambda s: '!' + s, columns))
             for row in comm.execute("SELECT * FROM '%s'" % table_name):
-                print row
                 sbtab.append(row)
             sbtabs.append(sbtab)
 
