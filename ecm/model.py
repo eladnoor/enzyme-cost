@@ -5,10 +5,10 @@ Created on Wed Apr  1 16:38:13 2015
 @author: noore
 """
 
-from sbtab_dict import SBtabDict
+from tablib.dictionary.sbtab_dict import SBtabDict
 from component_contribution.kegg_reaction import KeggReaction
 from component_contribution.kegg_model import KeggModel
-from component_contribution.component_contribution import ComponentContribution
+from component_contribution.component_contribution_trainer import ComponentContribution
 import numpy as np
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat

@@ -11,7 +11,7 @@ import os
 import sqlite3
 import matplotlib.pyplot as plt
 import pandas
-from ecm.sbtab_dict import SBtabDict
+from tablib.dictionary.sbtab_dict import SBtabDict
 pandas.options.display.mpl_style = 'default'
 
 exp_name = 'ecm_ecoli_aerobic'
