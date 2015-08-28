@@ -5,10 +5,10 @@ Created on Wed Apr  1 16:38:13 2015
 @author: noore
 """
 
-from tablib.dictionary.sbtab_dict import SBtabDict
 from component_contribution.kegg_reaction import KeggReaction
 from component_contribution.kegg_model import KeggModel
 from component_contribution.component_contribution_trainer import ComponentContribution
+from component_contribution.thermodynamic_constants import default_RT
 import numpy as np
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat
@@ -21,17 +21,19 @@ CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/
 
 class ECMmodel(object):
     
-    def __init__(self, sbtab_dict):
+    def __init__(self, sbtab_dict,
+                 ecf_version='ECF3_1SP',
+                 calculate_dG0_using_CC=False):
         self._sbtab_dict = sbtab_dict
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
-            'Compound:Identifiers:kegg.compound', 'NameForPlots')
+            'Compound:Identifiers:kegg.compound', 'Name')
         self.kegg2rxn = self._sbtab_dict.GetDictFromTable('Reaction', 
-            'Reaction', 'NameForPlots')
+            'Reaction', 'Gene')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
 
         # a dictionary indicating which compound is external or not
         self.cid2external = self._sbtab_dict.GetDictFromTable(
-            'Compound', 'Compound:Identifiers:kegg.compound', 'External',
+            'Compound', 'Compound:Identifiers:kegg.compound', 'IsConstant',
             value_mapping=bool)
 
         # read the lower and upper bounds and convert them to M
@@ -44,10 +46,10 @@ class ECMmodel(object):
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
             value_mapping=bound_mapping)
 
-        self.kegg_model.check_S_balance()
+        self.kegg_model.check_S_balance(fix_water=True)
         cc = ComponentContribution.init()
         self.kegg_model.add_thermo(cc)
-        self._CalcGibbsEneriges()
+        self._CalcGibbsEneriges(calculate_dG0_using_CC=calculate_dG0_using_CC)
         
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
             ECMmodel._ReadKineticParameters(self._sbtab_dict)
@@ -58,7 +60,6 @@ class ECMmodel(object):
         self.rid2flux = self._sbtab_dict.GetDictFromTable(
             'Flux', 'Reaction', 'Flux', value_mapping=flux_mapping)
         
-        S = self.kegg_model.S
         flux = np.matrix(map(self.rid2flux.get, self.kegg_model.rids)).T
         kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
         dG0 = np.matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
@@ -67,14 +68,23 @@ class ECMmodel(object):
         c_bounds = np.array(zip(map(self.cid2min_bound.get, self.kegg_model.cids),
                                 map(self.cid2max_bound.get, self.kegg_model.cids)))
         lnC_bounds = np.log(c_bounds) # assume bounds are in M
+
+        # we need all fluxes to be positive, so for every negative flux,
+        # we multiply it and the corresponding column in S by (-1)
+        dir_mat = np.matrix(np.diag(np.sign(flux + 1e-10).flat))
+        flux = dir_mat * flux
+        S = self.kegg_model.S * dir_mat
+        dG0 = dir_mat * dG0
+
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
-                                      lnC_bounds=lnC_bounds, ecf_version='ECF3SP')
+                                      lnC_bounds=lnC_bounds, ecf_version=ecf_version)
     
     def WriteMatFile(self, file_name):
         mdict = self.ecf.Serialize()
         mdict['cids'] = self.kegg_model.cids
         mdict['rids'] = self.kegg_model.rids
-        savemat(file_name, mdict, format='5')
+        with open(file_name, 'wb') as fp:
+            savemat(fp, mdict, format='5')
     
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
@@ -101,14 +111,14 @@ class ECMmodel(object):
                 'Reaction',
                 'Unit']
 
-        rid2crc_gmean = {} # catalytic rate constant geomertic mean [1/s]
-        rid2crc_fwd = {}   # catalytic rate constant forward [1/s]
-        rid2crc_rev = {}   # catalytic rate constant reverse [1/s]
+        rid2crc_gmean = {} # catalytic rate constant geomertic mean
+        rid2crc_fwd = {}   # catalytic rate constant forward
+        rid2crc_rev = {}   # catalytic rate constant reverse
         crctype2dict = {'catalytic rate constant geometric mean': rid2crc_gmean,
                         'substrate catalytic rate constant': rid2crc_fwd,
                         'product catalytic rate constant': rid2crc_rev}
         
-        rid_cid2KMM = {}   # Michaelis-Menten constants [M]
+        rid_cid2KMM = {}   # Michaelis-Menten constants
         
         for i, row in enumerate(sbtab_dict.GetColumnsFromTable(table_name, cols)):
             try:
@@ -123,6 +133,10 @@ class ECMmodel(object):
                 elif typ == 'Michaelis constant':
                     value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
                     rid_cid2KMM[rid, cid] = value_mapping(val)
+                elif typ == 'equilibrium constant':
+                    pass
+                elif typ == 'concentration of enzyme':
+                    pass
                 else:
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
             except AssertionError as e:
@@ -131,15 +145,24 @@ class ECMmodel(object):
                 
         return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM
 
-    def _CalcGibbsEneriges(self):
-        dG0_prime, dG0_std, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
-        self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
+    def _CalcGibbsEneriges(self, calculate_dG0_using_CC=False):
+        if calculate_dG0_using_CC:
+            dG0_prime, dG0_std, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
+        else:
+            # it's better to take the values from the SBtab since they are processed
+            # by the parameter balancing funcion
+            rid2dG0 = self._sbtab_dict.GetDictFromTable(
+                'GibbsEnergyOfReaction', 'Reaction', 'Value', value_mapping=float)
+            dG0_prime = np.matrix(map(rid2dG0.get, self.kegg_model.rids), dtype=float).T
+            
+            # These 'standard Gibbs energies' are actually dG'm (since mM is used
+            # as the reference concentration). We need to convert them back to M
+            # and that requires using the stoichiometric matrix
+            mM_conc_v = 1e-3 * np.matrix(np.ones((self.kegg_model.S.shape[0], 1)))
+            mM_conc_v[self.kegg_model.cids.index('C00001')] = 1
+            dG0_prime -= self.kegg_model.S.T * default_RT * np.log(mM_conc_v)
 
-        # legacy code - read the dG0 from the SBtab itself rather than calculating
-        # it using CC
-        #
-        #self.rid2dG0 = self._sbtab_dict.GetDictFromTable(
-        #    'GibbsEnergyOfReaction', 'Reaction', 'dG0', value_mapping=float)
+        self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
     
     @staticmethod
     def _GenerateKMM(cids, rids, rid_cid2KMM):
@@ -230,7 +253,7 @@ class ECMmodel(object):
             'EnzymeConcentration', 'Reaction',
             'EnzymeConcentration', value_mapping=value_mapping)
 
-    def PlotEnzymeCosts(self, lnC, ax, top_level=3):
+    def PlotEnzymeCosts(self, lnC, ax, top_level=3, plot_measured=False):
         """
             A bar plot in log-scale showing the partitioning of cost between
             the levels of kinetic costs:
@@ -243,26 +266,40 @@ class ECMmodel(object):
         
         ecf_mat = self.ecf.GetEnzymeCostPartitions(lnC)
         datamat = np.log(ecf_mat)
-        base = min(datamat[np.isfinite(datamat)].flat) - 1
+        
+        idx_fin = np.where(np.all(np.isfinite(datamat), 1))[0]
+        idx_nan = np.where(np.any(np.isinf(datamat), 1))[0]
+        
+        base = min(datamat[idx_fin, :].flat) - 1
         bottoms = np.hstack([np.ones((datamat.shape[0], 1)) * base,
                              np.cumsum(datamat, 1)])
         bottoms = np.exp(bottoms)
+        bottoms[idx_nan, :] = np.exp(base)
         steps = np.diff(bottoms)
         
         labels = EnzymeCostFunction.ECF_LEVEL_NAMES[0:top_level]
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
-        width = 0.7
+        width = 0.5
         cmap = colors.ColorMap(labels, saturation=0.5, value=0.8)
         ax.set_yscale('log')
+
+        if plot_measured:
+            meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
+            meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids), dtype=float).T
+            ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0], color='grey')
         for i, label in enumerate(labels):
-            ax.bar(ind, steps[:, i], width,
-                   bottom=bottoms[:, i], color=cmap[label],
-                   alpha=1.0)
+            ax.bar(ind+0.25, steps[:, i], width,
+                   bottom=bottoms[:, i], color=cmap[label])
+
+
         ax.set_xticks(ind + width/2)
         xticks = map(self.kegg2rxn.get, self.kegg_model.rids)
         ax.set_xticklabels(xticks, size='medium', rotation=45)
-        ax.legend(labels, loc='best', framealpha=0.2)
+        if plot_measured:
+            ax.legend(['measured'] + labels, loc='best', framealpha=0.2)
+        else:
+            ax.legend(labels, loc='best', framealpha=0.2)
         #ax.set_xlabel('reaction')
         ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)

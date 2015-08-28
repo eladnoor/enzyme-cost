@@ -107,8 +107,8 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
         ax.set_yscale('linear')
         slope, intercept, r_value, p_value, std_err = \
             stats.linregress(x[mask].flat, y[mask].flat)
-    ax.plot(x[mask], y[mask], '.', markersize=5, color='red', alpha=0.5)
-    ax.plot(x[~mask], y[~mask], '.', markersize=5, color='blue', alpha=0.5)
+    ax.plot(x[mask], y[mask], '.', markersize=15, color='red', alpha=0.5)
+    ax.plot(x[~mask], y[~mask], '.', markersize=15, color='blue', alpha=0.5)
         
     v_min = min(np.nanmin(x[mask]), np.nanmin(y[mask]))
     v_max = max(np.nanmax(x[mask]), np.nanmax(y[mask]))

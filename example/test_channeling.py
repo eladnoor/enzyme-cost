@@ -17,7 +17,7 @@ pandas.options.display.mpl_style = 'default'
 l = logging.getLogger()
 l.setLevel(logging.INFO)
 
-exp_name = 'ecm_ecoli_aerobic'
+exp_name = 'ecm_ecoli_aerobic_channeling'
 sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.tsv' % exp_name)
 sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.sqlite' % exp_name)
 mat_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.mat' % exp_name)

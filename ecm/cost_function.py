@@ -139,12 +139,21 @@ class EnzymeCostFunction(object):
         eta_thermo[df <= 0] = -1.0
         return eta_thermo
 
-    def _EtaKinetic(self, lnC):
+    def _STerm(self, lnC):
         assert lnC.shape[0] == self.Nc
-        kin_subs = np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
-        kin_prod = np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
-        eta_kin = kin_subs/(1.0 + kin_subs + kin_prod)
-        return eta_kin        
+        return np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
+
+    def _PTerm(self, lnC):
+        assert lnC.shape[0] == self.Nc
+        return np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
+
+    def _EtaKinetic(self, lnC):
+        """
+            the kinetic part of eMC3(1SP), i.e. S / (1 + S + P)
+        """
+        S = self._STerm(lnC)
+        P = self._PTerm(lnC)
+        return S/(1.0 + S + P)
 
     def _EtaAllosteric(self, lnC):
         assert lnC.shape[0] == self.Nc
@@ -183,7 +192,7 @@ class EnzymeCostFunction(object):
         assert lnC.shape == (self.Nc, 1)
         return np.tile(np.multiply(self.flux, 1.0/self.kcat), (1, lnC.shape[1]))
 
-    def ECF2S(self, lnC):
+    def ECF2_S(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -200,7 +209,7 @@ class EnzymeCostFunction(object):
         
         return ECF2
 
-    def ECF3SP(self, lnC):
+    def ECF3_1SP(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -212,7 +221,7 @@ class EnzymeCostFunction(object):
         """
         # calculate the product of all substrates and products for the kinetic term
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self.ECF2S(lnC), 1.0/self._EtaKinetic(lnC))
+        return np.multiply(self.ECF2_S(lnC), 1.0/self._EtaKinetic(lnC))
 
     def ECF4(self, lnC):
         """

@@ -4,38 +4,46 @@ Created on Wed Apr  8 10:57:59 2015
 
 @author: noore
 """
-from ecm.model import ECMmodel
-from ecm.html_writer import HtmlWriter
+import sys
+from model import ECMmodel
+from html_writer import HtmlWriter
 import os
 import sqlite3
 import matplotlib.pyplot as plt
-import pandas
 import logging
 from tablib.dictionary.sbtab_dict import SBtabDict
-pandas.options.display.mpl_style = 'default'
+import seaborn
+seaborn.set()
 
 l = logging.getLogger()
 l.setLevel(logging.INFO)
 
-exp_name = 'ecm_ecoli_aerobic'
-sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.tsv' % exp_name)
+exp_name = 'ecoli_ccm_aerobic_ProteinComposition_haverkorn'
+model_sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s_ModelData.csv' % exp_name)
+verify_sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s_ValidationData.csv' % exp_name)
 sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.sqlite' % exp_name)
 mat_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.mat' % exp_name)
 html_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.html' % exp_name)
 
 html = HtmlWriter(html_fpath)
 
-if not os.path.exists(sqlite_fpath):
+#if not os.path.exists(sqlite_fpath):
+if True: # always override the SQL database
     logging.info('Converting input data from SBtab to SQLite')
-    _sbtab_dict = SBtabDict.FromSBtab(sbtab_fpath)
+    _model_sbtab_dict = SBtabDict.FromSBtab(model_sbtab_fpath)
+    _verify_sbtab_dict = SBtabDict.FromSBtab(verify_sbtab_fpath)
+
+    os.remove(sqlite_fpath)
     comm = sqlite3.connect(sqlite_fpath)
-    _sbtab_dict.SBtab2SQL(comm)
+    _model_sbtab_dict.SBtab2SQL(comm)
+    _verify_sbtab_dict.SBtab2SQL(comm)
+
     comm.close()
 
 logging.info('Reading data from SQLite database: ' + sqlite_fpath)
 sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
 logging.info('Creating an ECM model using the data')
-model = ECMmodel(sbtab_dict)
+model = ECMmodel(sbtab_dict, calculate_dG0_using_CC=True)
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
 
