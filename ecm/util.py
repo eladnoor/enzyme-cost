@@ -96,12 +96,12 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
     if mask is None:
         mask = (x > 0) & (y > 0)
     
-    ax.grid(False)
+    #ax.grid(False)
     if scale == 'log':
         ax.set_xscale('log')
         ax.set_yscale('log')
         slope, intercept, r_value, p_value, std_err = \
-            stats.linregress(np.log(x[mask]).flat, np.log(y[mask]).flat)
+           stats.linregress(np.log(x[mask]).flat, np.log(y[mask]).flat)
     else:
         ax.set_xscale('linear')
         ax.set_yscale('linear')
@@ -120,7 +120,8 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
         if m:
             ax.text(x_i, y_i, l, alpha=1.0)
         elif np.isfinite(x_i) and np.isfinite(y_i):
-            ax.text(x_i, y_i, l, alpha=0.5)
+            if scale == 'linear' or (x_i > 0 and y_i > 0):
+                ax.text(x_i, y_i, l, alpha=0.5)
 
 if __name__ == '__main__':
     x = np.eye(3)

@@ -271,16 +271,26 @@ class EnzymeCostFunction(object):
             enzyme cost per flux, i.e. sum(ECF(lnC))
         """
         
-        def optfun(lnC):
+        def optfun(lnC, regularization=1e-1):
             lnC = CastToColumnVector(lnC)
+
+            # if some reaction is not feasible, give a large penalty 
+            # proportional to the negative driving force.
             minimal_df = self._DrivingForce(lnC).min()
-            if minimal_df > 0: # all reactions are feasible
-                e = self.ECF(lnC).sum(axis=0)[0,0]
-                if np.isnan(e):
-                    raise Exception('ECF returns NaN although all reactions are feasible')
-                return np.log(e)
-            else: # give a large penalty proportional to the negative driving force
+            if minimal_df <= 0: 
                 return 1e20 * abs(minimal_df)
+
+            e = self.ECF(lnC).sum(axis=0)[0,0]
+            if np.isnan(e) or e <= 0:
+                raise Exception('ECF returns NaN although all reactions are feasible')
+
+            lnE = np.log(e)
+            
+            if regularization is not None:
+                d = lnC - np.log(1e-4)
+                lnE += regularization * d.T * d
+            
+            return lnE
                 
         assert lnC0.shape == (self.Nc, 1)
 

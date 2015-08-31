@@ -18,7 +18,7 @@ l = logging.getLogger()
 l.setLevel(logging.INFO)
 
 exp_name = 'ecm_ecoli_aerobic'
-sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.tsv' % exp_name)
+sbtab_fpath = os.path.expanduser('~/git/enzyme-cost/data/%s.csv' % exp_name)
 sqlite_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.sqlite' % exp_name)
 mat_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.mat' % exp_name)
 html_fpath = os.path.expanduser('~/git/enzyme-cost/res/%s.html' % exp_name)

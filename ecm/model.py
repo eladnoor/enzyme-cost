@@ -16,14 +16,18 @@ import colors
 from util import ParseReaction, PlotCorrelation
 import logging
 from errors import ThermodynamicallyInfeasibleError
+import types
 
 CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/content/241/10/2200.full.pdf+html]
+DEFAULT_DG0_SOURCE = 'keq_table'
+
+str2bool = lambda x : x not in [0, 'false', 'False']
 
 class ECMmodel(object):
     
     def __init__(self, sbtab_dict,
                  ecf_version='ECF3_1SP',
-                 calculate_dG0_using_CC=False):
+                 dG0_source=DEFAULT_DG0_SOURCE):
         self._sbtab_dict = sbtab_dict
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
             'Compound:Identifiers:kegg.compound', 'Name')
@@ -32,27 +36,29 @@ class ECMmodel(object):
         self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
 
         # a dictionary indicating which compound is external or not
+        if '!External' in self._sbtab_dict['Compound'].columns:
+            ext_col_name = 'External'
+        else:
+            ext_col_name = 'IsConstant'            
+            
         self.cid2external = self._sbtab_dict.GetDictFromTable(
-            'Compound', 'Compound:Identifiers:kegg.compound', 'IsConstant',
-            value_mapping=bool)
+            'Compound', 'Compound:Identifiers:kegg.compound', ext_col_name,
+            value_mapping=str2bool)
 
-        # read the lower and upper bounds and convert them to M
-        bound_units = self._sbtab_dict.GetTableAttribute('ConcentrationConstraint', 'Unit')
-        bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
-        self.cid2min_bound = self._sbtab_dict.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
-            value_mapping=bound_mapping)
-        self.cid2max_bound = self._sbtab_dict.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
-            value_mapping=bound_mapping)
-
+        self._ReadConcentrationBounds()
         self.kegg_model.check_S_balance(fix_water=True)
-        cc = ComponentContribution.init()
-        self.kegg_model.add_thermo(cc)
-        self._CalcGibbsEneriges(calculate_dG0_using_CC=calculate_dG0_using_CC)
         
-        rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM = \
+        rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq = \
             ECMmodel._ReadKineticParameters(self._sbtab_dict)
+
+        if dG0_source == 'keq_table':
+            self._CalcGibbsEnergiesFromKeq(rid2keq)
+        elif dG0_source == 'component_contribution':
+            self._CalcGibbsEnerigesFromComponentContribution()
+        elif dG0_source == 'dG0r_table':
+            self._CalcGibbsEnerigesFromdG0ReactionTable()
+        else:
+            raise ValueError('unrecognized dG0 source: ' + dG0_source)
         
         # read flux values and convert them to M/s
         flux_units = self._sbtab_dict.GetTableAttribute('Flux', 'Unit')
@@ -61,7 +67,8 @@ class ECMmodel(object):
             'Flux', 'Reaction', 'Flux', value_mapping=flux_mapping)
         
         flux = np.matrix(map(self.rid2flux.get, self.kegg_model.rids)).T
-        kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
+        #kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
+        kcat = np.matrix(map(rid2crc_fwd.get, self.kegg_model.rids)).T
         dG0 = np.matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
                                     self.kegg_model.rids, rid_cid2KMM)
@@ -111,6 +118,7 @@ class ECMmodel(object):
                 'Reaction',
                 'Unit']
 
+        rid2keq = {}
         rid2crc_gmean = {} # catalytic rate constant geomertic mean
         rid2crc_fwd = {}   # catalytic rate constant forward
         rid2crc_rev = {}   # catalytic rate constant reverse
@@ -134,7 +142,8 @@ class ECMmodel(object):
                     value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
                     rid_cid2KMM[rid, cid] = value_mapping(val)
                 elif typ == 'equilibrium constant':
-                    pass
+                    assert unit == ''
+                    rid2keq[rid] = val
                 elif typ == 'concentration of enzyme':
                     pass
                 else:
@@ -143,27 +152,80 @@ class ECMmodel(object):
                 raise ValueError('Syntax error in SBtab table %s, row %d - %s' %
                                  (table_name, i, str(e)))
                 
-        return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM
+        return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq
 
-    def _CalcGibbsEneriges(self, calculate_dG0_using_CC=False):
-        if calculate_dG0_using_CC:
-            dG0_prime, dG0_std, sqrt_Sigma = self.kegg_model.get_transformed_dG0(pH=7.5, I=0.1, T=298.15)
-        else:
-            # it's better to take the values from the SBtab since they are processed
-            # by the parameter balancing funcion
-            rid2dG0 = self._sbtab_dict.GetDictFromTable(
-                'GibbsEnergyOfReaction', 'Reaction', 'Value', value_mapping=float)
-            dG0_prime = np.matrix(map(rid2dG0.get, self.kegg_model.rids), dtype=float).T
-            
-            # These 'standard Gibbs energies' are actually dG'm (since mM is used
-            # as the reference concentration). We need to convert them back to M
-            # and that requires using the stoichiometric matrix
-            mM_conc_v = 1e-3 * np.matrix(np.ones((self.kegg_model.S.shape[0], 1)))
-            mM_conc_v[self.kegg_model.cids.index('C00001')] = 1
-            dG0_prime -= self.kegg_model.S.T * default_RT * np.log(mM_conc_v)
+    def _GibbsEnergyFromMilliMolarToMolar(self, dGm):
+        """
+            In the current SBtab file format, the 'standard Gibbs energies' 
+            are actually dGm (since mM is used as the reference concentration).
+            We need to convert them back to M and that requires using the 
+            stoichiometric matrix (self.kegg_model.S).
+        """
+        
+        # Assume that all concentrations are 1 mM
+        mM_conc_v = 1e-3 * np.matrix(np.ones((self.kegg_model.S.shape[0], 1)))
 
+        # remember to set the concentration of H2O to 1        
+        mM_conc_v[self.kegg_model.cids.index('C00001')] = 1
+        
+        # subtract the effect of the concentrations to return back to dG0
+        dG0 = dGm - self.kegg_model.S.T * default_RT * np.log(mM_conc_v)
+        
+        return dG0
+
+    def _CalcGibbsEnergiesFromKeq(self, rid2keq):
+        keq = np.matrix(map(rid2keq.get, self.kegg_model.rids)).T
+        dGm_prime = - default_RT * np.log(keq)
+        dG0_prime = self._GibbsEnergyFromMilliMolarToMolar(dGm_prime)
         self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
-    
+
+    def _CalcGibbsEnerigesFromComponentContribution(self):
+        cc = ComponentContribution.init()
+        self.kegg_model.add_thermo(cc)
+        dG0_prime, dG0_std, sqrt_Sigma = self.kegg_model.get_transformed_dG0(
+            pH=7.5, I=0.1, T=298.15)
+        self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
+
+    def _CalcGibbsEnerigesFromdG0ReactionTable(self):
+        """
+            it's better to take the values from the SBtab since they are processed
+            by the parameter balancing funcion
+        """
+        dG0_units = self._sbtab_dict.GetTableAttribute('GibbsEnergyOfReaction', 'Unit')
+        value_mapping = ECMmodel._MappingToCanonicalEnergyUnits(dG0_units)
+        rid2dGm = self._sbtab_dict.GetDictFromTable(
+            'GibbsEnergyOfReaction', 'Reaction', 'Value', value_mapping=value_mapping)
+        dGm_prime = np.matrix(map(rid2dGm.get, self.kegg_model.rids), dtype=float).T
+        dG0_prime = self._GibbsEnergyFromMilliMolarToMolar(dGm_prime)
+        self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
+
+    def _ReadConcentrationBounds(self):
+        """
+            read the lower and upper bounds and convert them to M.
+            verify that the values make sense.
+        """
+        bound_units = self._sbtab_dict.GetTableAttribute('ConcentrationConstraint', 'Unit')
+        bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
+        self.cid2min_bound = self._sbtab_dict.GetDictFromTable(
+            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
+            value_mapping=bound_mapping)
+        self.cid2max_bound = self._sbtab_dict.GetDictFromTable(
+            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
+            value_mapping=bound_mapping)
+            
+        if 'C00001' in self.cid2min_bound:
+            assert np.round(self.cid2min_bound['C00001'], 2) == 1
+        else:
+            self.cid2min_bound['C00001'] = 1
+
+        if 'C00001' in self.cid2max_bound:
+            assert np.round(self.cid2max_bound['C00001'], 2) == 1
+        else:
+            self.cid2max_bound['C00001'] = 1
+        
+        for cid in self.cid2min_bound.keys():
+            assert self.cid2min_bound[cid] <= self.cid2max_bound[cid]
+
     @staticmethod
     def _GenerateKMM(cids, rids, rid_cid2KMM):
         KMM = np.ones((len(cids), len(rids)))
@@ -173,14 +235,21 @@ class ECMmodel(object):
         return KMM
     
     def MDF(self):
-        mdf, params = self.ecf.MDF()
+        mdf, params = self.ecf.MDF() # note that MDF is given in units of RT
+        
         if np.isnan(mdf) or mdf < 0.0:
-            logging.error('Negative MDF value: %.1f' % mdf)
+            logging.error('Negative MDF value: %.1f RT (= %.1f kJ/mol)' %
+                          (mdf, mdf * default_RT))
             logging.error('The reactions with shadow prices are:')
-            shadow_prices = params['reaction prices']
-            for rid, sp in zip(self.kegg_model.rids, shadow_prices.flat):
+            for rid, sp in zip(self.kegg_model.rids, params['reaction prices'].flat):
                 if sp:
                     logging.error('\t%s : %g' % (rid, sp))
+
+            conc = map(np.exp, params['ln concentrations'].flat)
+            for cid, sp, C in zip(self.kegg_model.cids, params['compound prices'].flat, conc):
+                if sp and not self.cid2external[cid]:
+                    logging.error('\t[%30s] : %5.1e < %5.1e < %5.1e M' %
+                        (self.kegg2met[cid], self.cid2min_bound[cid], C, self.cid2max_bound[cid]))
             raise ThermodynamicallyInfeasibleError()
         return params['ln concentrations']
         
@@ -189,7 +258,37 @@ class ECMmodel(object):
         
     def ECF(self, lnC):
         return self.ecf.ECF(lnC)
+    
+    @staticmethod
+    def _nanfloat(x):
+        if type(x) == float:
+            return x
+        if type(x) == int:
+            return float(x)
+        if type(x) in types.StringTypes:
+            if x.lower() in ['', 'nan']:
+                return np.nan
+            else:
+                return float(x)
+        else:
+            raise ValueError('unrecognized type for value: ' + str(type(x)))
+    
+    @staticmethod
+    def _MappingToCanonicalEnergyUnits(unit):
+        """
+            Assuming the canonical units for concentration are Molar
+            
+            Returns:
+                A function that converts a single number or string to the 
+                canonical units
+        """
+        if unit == 'kJ/mol':
+            return lambda x: ECMmodel._nanfloat(x)
+        if unit == 'kcal/mol':
+            return lambda x: ECMmodel._nanfloat(x)*4.184
         
+        raise ValueError('Cannot convert these units to kJ/mol: ' + unit)
+
     @staticmethod
     def _MappingToCanonicalConcentrationUnits(unit):
         """
@@ -200,13 +299,13 @@ class ECMmodel(object):
                 canonical units
         """
         if unit == 'M':
-            return lambda x: float(x)
+            return lambda x: ECMmodel._nanfloat(x)
         if unit == 'mM':
-            return lambda x: float(x)*1e-3
+            return lambda x: ECMmodel._nanfloat(x)*1e-3
         if unit == 'uM':
-            return lambda x: float(x)*1e-6
+            return lambda x: ECMmodel._nanfloat(x)*1e-6
         if unit == 'nM':
-            return lambda x: float(x)*1e-9
+            return lambda x: ECMmodel._nanfloat(x)*1e-9
         
         raise ValueError('Cannot convert these units to M: ' + unit)
     
@@ -222,17 +321,17 @@ class ECMmodel(object):
             Note: CELL_VOL_PER_DW is given in [L/gCDW]
         """
         if unit == 'M/s':
-            return lambda x: float(x)
+            return lambda x: ECMmodel._nanfloat(x)
         if unit == 'mM/s':
-            return lambda x: float(x)*1e-3
+            return lambda x: ECMmodel._nanfloat(x)*1e-3
         if unit == 'mmol/gCDW/h':
-            return lambda x: float(x) / (CELL_VOL_PER_DW * 3600 * 1e3)
+            return lambda x: ECMmodel._nanfloat(x) / (CELL_VOL_PER_DW * 3600 * 1e3)
         if unit == 'mol/gCDW/h':
-            return lambda x: float(x) / (CELL_VOL_PER_DW * 3600)
+            return lambda x: ECMmodel._nanfloat(x) / (CELL_VOL_PER_DW * 3600)
         if unit == 'umol/gCDW/min':
-            return lambda x: float(x) / (CELL_VOL_PER_DW * 60 * 1e6)
+            return lambda x: ECMmodel._nanfloat(x) / (CELL_VOL_PER_DW * 60 * 1e6)
         if unit == 'mmol/gCDW/min':
-            return lambda x: float(x) / (CELL_VOL_PER_DW * 60 * 1e3)
+            return lambda x: ECMmodel._nanfloat(x) / (CELL_VOL_PER_DW * 60 * 1e3)
         
         raise ValueError('Cannot convert these units to M/s: ' + unit)
 
@@ -281,25 +380,27 @@ class ECMmodel(object):
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
         width = 0.5
-        cmap = colors.ColorMap(labels, saturation=0.5, value=0.8)
         ax.set_yscale('log')
 
         if plot_measured:
+            all_labels = ['measured'] + labels
             meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
             meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids), dtype=float).T
-            ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0], color='grey')
+            cmap = colors.ColorMap(all_labels, saturation=0.7, value=0.9, hues=None)
+            ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0], 
+                   color=cmap['measured'], alpha=0.3)
+        else:
+            all_labels = labels
+            cmap = colors.ColorMap(labels, saturation=0.7, value=0.9)
+            
         for i, label in enumerate(labels):
             ax.bar(ind+0.25, steps[:, i], width,
                    bottom=bottoms[:, i], color=cmap[label])
 
-
         ax.set_xticks(ind + width/2)
         xticks = map(self.kegg2rxn.get, self.kegg_model.rids)
-        ax.set_xticklabels(xticks, size='medium', rotation=45)
-        if plot_measured:
-            ax.legend(['measured'] + labels, loc='best', framealpha=0.2)
-        else:
-            ax.legend(labels, loc='best', framealpha=0.2)
+        ax.set_xticklabels(xticks, size='medium', rotation=90)
+        ax.legend(all_labels, loc='best', framealpha=0.2)
         #ax.set_xlabel('reaction')
         ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)
@@ -326,10 +427,8 @@ class ECMmodel(object):
         meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
         meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids)).T
         
-        mask = (pred_conc > 0) & (meas_conc > 0)
-
         labels = map(self.kegg2rxn.get, self.kegg_model.rids)
-        PlotCorrelation(ax, meas_conc, pred_conc, labels, mask)
+        PlotCorrelation(ax, meas_conc, pred_conc, labels)
 
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
@@ -375,5 +474,7 @@ class ECMmodel(object):
                      self.kegg_model.cids,
                      *data_mat.T.tolist())
         rowdicst = [dict(zip(headers, v)) for v in values]
+        headers = ['compound', 'KEGG ID', 'measured conc. [mM]',
+                   'lower bound [mM]', 'predicted conc. [mM]', 'upper bound [mM]']
         html.write_table(rowdicst, headers=headers)
 

@@ -12,9 +12,11 @@ import sqlite3
 import matplotlib.pyplot as plt
 import logging
 from tablib.dictionary.sbtab_dict import SBtabDict
-import seaborn
-seaborn.set()
-
+import seaborn as sns
+from errors import ThermodynamicallyInfeasibleError
+sns.set()
+sns.axes_style("darkgrid")
+    
 l = logging.getLogger()
 l.setLevel(logging.INFO)
 
@@ -43,12 +45,17 @@ if True: # always override the SQL database
 logging.info('Reading data from SQLite database: ' + sqlite_fpath)
 sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
 logging.info('Creating an ECM model using the data')
-model = ECMmodel(sbtab_dict, calculate_dG0_using_CC=True)
+model = ECMmodel(sbtab_dict, dG0_source='dG0r_table')
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
 
 logging.info('Solving MDF problem')
-lnC_MDF = model.MDF()
+try:
+    lnC_MDF = model.MDF()
+except ThermodynamicallyInfeasibleError as e:
+    logging.error('The pathway is not feasible under the given constraints')
+    sys.exit(-1)
+    
 logging.info('Solving ECM problem')
 lnC_ECM = model.ECM()
 
@@ -60,13 +67,13 @@ ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
 model.PlotEnzymeCosts(lnC_ECM, ax_ECM, plot_measured=True)
 fig1.show()
 
-fig2 = plt.figure(figsize=(6, 6))
+fig2 = plt.figure(figsize=(14, 14))
 fig2.suptitle('Metabolite Concentrations')
 ax = fig2.add_subplot(1, 1, 1, xscale='log', yscale='log')
 model.ValidateMetaboliteConcentrations(lnC_ECM, ax)
 fig2.show()
 
-fig3 = plt.figure(figsize=(6, 6))
+fig3 = plt.figure(figsize=(14, 14))
 fig3.suptitle('Enzyme Concentrations')
 ax = fig3.add_subplot(1, 1, 1, xscale='log', yscale='log')
 model.ValidateEnzymeConcentrations(lnC_ECM, ax)
