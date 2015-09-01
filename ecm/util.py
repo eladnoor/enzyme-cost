@@ -85,7 +85,7 @@ def ParseReaction(formula, arrow='<=>'):
 
     return sparse_reaction
 
-def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
+def PlotCorrelation(ax, x, y, labels, mask=None, scale='log', grid=True):
     """
         scale - if 'log' indicates that the regression should be done on the
                 logscale data.
@@ -96,7 +96,7 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
     if mask is None:
         mask = (x > 0) & (y > 0)
     
-    #ax.grid(False)
+    ax.grid(grid)
     if scale == 'log':
         ax.set_xscale('log')
         ax.set_yscale('log')
@@ -109,19 +109,25 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log'):
             stats.linregress(x[mask].flat, y[mask].flat)
     ax.plot(x[mask], y[mask], '.', markersize=15, color='red', alpha=0.5)
     ax.plot(x[~mask], y[~mask], '.', markersize=15, color='blue', alpha=0.5)
+    
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    ax.set_xlim(min(xmin, ymin), max(xmax, ymax))
+    ax.set_ylim(min(xmin, ymin), max(xmax, ymax))
+    ax.plot([0, 1], [0, 1], ':', color='black', alpha=0.4, transform=ax.transAxes)
         
-    v_min = min(np.nanmin(x[mask]), np.nanmin(y[mask]))
-    v_max = max(np.nanmax(x[mask]), np.nanmax(y[mask]))
-    ax.plot([v_min, v_max], [v_min, v_max], '--', color=(0.2, 0.2, 0.2))
-        
-    ax.set_title(r'$r$ = %.2f (p = %.1e)' % (r_value, p_value))
+    ax.text(0.05, 0.9, '$r$ = %.2f\n(p = %.1e)' % (r_value, p_value),
+            verticalalignment='bottom', horizontalalignment='left',
+            transform=ax.transAxes,
+            color='black', fontsize=10,
+            bbox={'facecolor':'white', 'alpha':0.5, 'pad':10}) 
     
     for l, x_i, y_i, m in zip(labels, x, y, mask):
         if m:
             ax.text(x_i, y_i, l, alpha=1.0)
         elif np.isfinite(x_i) and np.isfinite(y_i):
             if scale == 'linear' or (x_i > 0 and y_i > 0):
-                ax.text(x_i, y_i, l, alpha=0.5)
+                ax.text(x_i, y_i, l, alpha=0.4)
 
 if __name__ == '__main__':
     x = np.eye(3)

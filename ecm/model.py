@@ -19,7 +19,8 @@ from errors import ThermodynamicallyInfeasibleError
 import types
 
 CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/content/241/10/2200.full.pdf+html]
-DEFAULT_DG0_SOURCE = 'keq_table'
+DEFAULT_DG0_SOURCE = 'keq_table' # options are: 'keq_table', 'dG0r_table' or 'component_contribution'
+DEFAULT_KCAT_SOURCE = 'fwd' # options are: 'fwd' or 'gmean'
 
 str2bool = lambda x : x not in [0, 'false', 'False']
 
@@ -27,12 +28,13 @@ class ECMmodel(object):
     
     def __init__(self, sbtab_dict,
                  ecf_version='ECF3_1SP',
-                 dG0_source=DEFAULT_DG0_SOURCE):
+                 dG0_source=DEFAULT_DG0_SOURCE,
+                 kcat_source=DEFAULT_KCAT_SOURCE):
         self._sbtab_dict = sbtab_dict
         self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound', 
             'Compound:Identifiers:kegg.compound', 'Name')
         self.kegg2rxn = self._sbtab_dict.GetDictFromTable('Reaction', 
-            'Reaction', 'Gene')
+            'Reaction', 'NameForPlots')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
 
         # a dictionary indicating which compound is external or not
@@ -67,8 +69,21 @@ class ECMmodel(object):
             'Flux', 'Reaction', 'Flux', value_mapping=flux_mapping)
         
         flux = np.matrix(map(self.rid2flux.get, self.kegg_model.rids)).T
-        #kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
-        kcat = np.matrix(map(rid2crc_fwd.get, self.kegg_model.rids)).T
+
+        if kcat_source == 'gmean':
+            kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
+        elif kcat_source == 'fwd':
+            # get the relevant kcat (fwd/rev) depending on the direction of flux        
+            kcat = []
+            for r, rid in enumerate(self.kegg_model.rids):
+                if flux[r] >= 0:
+                    kcat.append(rid2crc_fwd[rid])
+                else:
+                    kcat.append(rid2crc_rev[rid])
+            kcat = np.matrix(kcat).T
+        else:
+            raise ValueError('unrecognized kcat source: ' + kcat_source)
+        
         dG0 = np.matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
                                     self.kegg_model.rids, rid_cid2KMM)
@@ -379,22 +394,24 @@ class ECMmodel(object):
         labels = EnzymeCostFunction.ECF_LEVEL_NAMES[0:top_level]
 
         ind = np.arange(ecf_mat.shape[0])    # the x locations for the groups
-        width = 0.5
+        width = 0.8
         ax.set_yscale('log')
 
         if plot_measured:
             all_labels = ['measured'] + labels
             meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
             meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids), dtype=float).T
-            cmap = colors.ColorMap(all_labels, saturation=0.7, value=0.9, hues=None)
-            ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0], 
-                   color=cmap['measured'], alpha=0.3)
+            cmap = colors.ColorMap(all_labels, saturation=0.7, value=1.0, hues=[30.0/255, 170.0/255, 200.0/255, 5.0/255])
+            #ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0], 
+            #       color=cmap['measured'], alpha=0.3)
+            ax.plot(ind+width/2.0, meas_conc, color=cmap['measured'], marker='o', markersize=5, linewidth=0,
+                    markeredgewidth=0.3, markeredgecolor=(0.3,0.3,0.3))
         else:
             all_labels = labels
-            cmap = colors.ColorMap(labels, saturation=0.7, value=0.9)
+            cmap = colors.ColorMap(labels, saturation=0.7, value=0.8, hues=[170.0/255, 200.0/255, 5.0/255])
             
         for i, label in enumerate(labels):
-            ax.bar(ind+0.25, steps[:, i], width,
+            ax.bar(ind, steps[:, i], width,
                    bottom=bottoms[:, i], color=cmap[label])
 
         ax.set_xticks(ind + width/2)
@@ -404,10 +421,8 @@ class ECMmodel(object):
         #ax.set_xlabel('reaction')
         ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)
-        total = np.prod(ecf_mat, 1).sum()
-        ax.set_title(r'Total enzyme cost = %.2f $\times$ $10^{-3}$ [M]' % (total*1e3))
     
-    def ValidateMetaboliteConcentrations(self, lnC, ax):
+    def ValidateMetaboliteConcentrations(self, lnC, ax, scale='log'):
         pred_conc = np.exp(lnC)
 
         meas_met2conc = self._GetMeasuredMetaboliteConcentrations()
@@ -417,18 +432,18 @@ class ECMmodel(object):
         mask &= np.diff(self.ecf.lnC_bounds) > 1e-9 # remove compounds with fixed concentrations
 
         labels = map(self.kegg2met.get, self.kegg_model.cids)
-        PlotCorrelation(ax, meas_conc, pred_conc, labels, mask)
+        PlotCorrelation(ax, meas_conc, pred_conc, labels, mask, scale=scale)
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
         
-    def ValidateEnzymeConcentrations(self, lnC, ax):
+    def ValidateEnzymeConcentrations(self, lnC, ax, scale='log'):
         pred_conc = self.ecf.ECF(lnC)
 
         meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
         meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids)).T
         
         labels = map(self.kegg2rxn.get, self.kegg_model.rids)
-        PlotCorrelation(ax, meas_conc, pred_conc, labels)
+        PlotCorrelation(ax, meas_conc, pred_conc, labels, scale=scale)
 
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
@@ -455,6 +470,8 @@ class ECMmodel(object):
         values = zip(map(self.kegg2rxn.get, self.kegg_model.rids),
                      self.kegg_model.rids,
                      *data_mat.T.tolist())
+        values.append(['total', '', '', data_mat[:, 1].sum(), data_mat[:, 2].sum(),
+                       '', '', '', '', ''])
         
         rowdicst = [dict(zip(headers, v)) for v in values]
         html.write_table(rowdicst, headers=headers, decimal=3)

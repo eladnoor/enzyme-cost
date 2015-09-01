@@ -30,6 +30,7 @@ SDH_R02164	Ubiquinone + Succinate <=> Fumarate + Ubiquinol	R02164	True	SDH	Commo
 FUM_R01082	Fumarate <=> _S__Malate	R01082	True	FUM	Common saturable (CM)	u_R28 * ( kC_R28 * sqrt( kEQ_R28  * kM_R28_Fumarate / kM_R28__S__Malate ) * ( Fumarate / kM_R28_Fumarate ) - kC_R28 / sqrt( kEQ_R28  * kM_R28_Fumarate / kM_R28__S__Malate ) * ( _S__Malate / kM_R28__S__Malate ) ) / ( ( 1 + Fumarate / kM_R28_Fumarate ) + ( 1 + _S__Malate / kM_R28__S__Malate ) - 1 )	fum
 MDH_R00342	_S__Malate + NADplus <=> NADH + Oxaloacetate	R00342	True	MDH	Common saturable (CM)	u_R29 * ( kC_R29 * sqrt( kEQ_R29  * kM_R29__S__Malate * kM_R29_NADplus / kM_R29_NADH / kM_R29_Oxaloacetate ) * ( _S__Malate / kM_R29__S__Malate ) * ( NADplus / kM_R29_NADplus ) - kC_R29 / sqrt( kEQ_R29  * kM_R29__S__Malate * kM_R29_NADplus / kM_R29_NADH / kM_R29_Oxaloacetate ) * ( NADH / kM_R29_NADH ) * ( Oxaloacetate / kM_R29_Oxaloacetate ) ) / ( ( 1 + _S__Malate / kM_R29__S__Malate ) * ( 1 + NADplus / kM_R29_NADplus ) + ( 1 + NADH / kM_R29_NADH ) * ( 1 + Oxaloacetate / kM_R29_Oxaloacetate ) - 1 )	mdh
 PPC_R00345	Orthophosphate + Oxaloacetate <=> CO2 + Phosphoenolpyruvate	R00345	True	PPC	Common saturable (CM)	u_R30 * ( kC_R30 * sqrt( kEQ_R30  * kM_R30_Orthophosphate * kM_R30_Oxaloacetate / kM_R30_CO2 / kM_R30_Phosphoenolpyruvate ) * ( Orthophosphate / kM_R30_Orthophosphate ) * ( Oxaloacetate / kM_R30_Oxaloacetate ) - kC_R30 / sqrt( kEQ_R30  * kM_R30_Orthophosphate * kM_R30_Oxaloacetate / kM_R30_CO2 / kM_R30_Phosphoenolpyruvate ) * ( CO2 / kM_R30_CO2 ) * ( Phosphoenolpyruvate / kM_R30_Phosphoenolpyruvate ) ) / ( ( 1 + Orthophosphate / kM_R30_Orthophosphate ) * ( 1 + Oxaloacetate / kM_R30_Oxaloacetate ) + ( 1 + CO2 / kM_R30_CO2 ) * ( 1 + Phosphoenolpyruvate / kM_R30_Phosphoenolpyruvate ) - 1 )	ppc
+CNL_R99999	D_Fructose_6_phosphate + 2 Orthophosphate + 2 NADplus + ADP <=> 2 Phosphoenolpyruvate + 2 H2O + 2 NADH + ATP	R99999	True	pfkB + pfkA + fbaA + fbaB + tpiA + gapA + pgk + gpmA + gpmM + eno			cnl
 %							
 !!SBtab TableName='Compound' TableType='Compound' Document='Model' SBtabVersion='0.8'							
 !Compound	!FullName	!Compound:Identifiers:kegg.compound	!IsConstant	!Name			
@@ -106,6 +107,7 @@ equilibrium constant	5756.8025			SDH_R02164		R02164	kEQ_R27
 equilibrium constant	3.9855529			FUM_R01082		R01082	kEQ_R28
 equilibrium constant	2.0550821E-005			MDH_R00342		R00342	kEQ_R29
 equilibrium constant	0.000001			PPC_R00345		R00345	kEQ_R30
+equilibrium constant	14.8050218777			CNL_R99999		R99999	kEQ_R31
 catalytic rate constant geometric mean	336.74878	1/s		PTS_RPTSsy		RPTSsy	kC_R1
 catalytic rate constant geometric mean	351.88926	1/s		PGI_R02740		R02740	kC_R2
 catalytic rate constant geometric mean	335.00019	1/s		PFK_R04779		R04779	kC_R3
@@ -136,6 +138,7 @@ catalytic rate constant geometric mean	217.95951	1/s		SDH_R02164		R02164	kC_R27
 catalytic rate constant geometric mean	290.31925	1/s		FUM_R01082		R01082	kC_R28
 catalytic rate constant geometric mean	324.68328	1/s		MDH_R00342		R00342	kC_R29
 catalytic rate constant geometric mean	315.88366	1/s		PPC_R00345		R00345	kC_R30
+catalytic rate constant geometric mean	70	1/s		CNL_R99999		R99999	kC_R31
 Michaelis constant	0.3219427	mM	_S__Malate	FUM_R01082	C00149	R01082	kM_R28__S__Malate
 Michaelis constant	35.120778	mM	_S__Malate	MDH_R00342	C00149	R00342	kM_R29__S__Malate
 Michaelis constant	0.068140234	mM	Acetyl_CoA	PDH_R00209	C00024	R00209	kM_R11_Acetyl_CoA
@@ -243,6 +246,13 @@ Michaelis constant	1.4513015	mM	Succinate	SCS_R00405	C00042	R00405	kM_R26_Succin
 Michaelis constant	0.099727339	mM	Succinate	SDH_R02164	C00042	R02164	kM_R27_Succinate
 Michaelis constant	3.6975368	mM	Sedoheptulose_7_phosphate	TXT_R01641	C05382	R01641	kM_R17_Sedoheptulose_7_phosphate
 Michaelis constant	0.032971367	mM	Sedoheptulose_7_phosphate	TAL_R08575	C05382	R08575	kM_R18_Sedoheptulose_7_phosphate
+Michaelis constant	0.0070329059	mM	D_Fructose_6_phosphate	CNL_R99999	C00085	R99999	kM_R31_D_Fructose_6_phosphate
+Michaelis constant	0.038174533	mM	ADP	CNL_R99999	C00008	R99999	kM_R31_ADP
+Michaelis constant	1.7564199	mM	ATP	CNL_R99999	C00002	R99999	kM_R31_ATP
+Michaelis constant	0.0041419142	mM	NADH	CNL_R99999	C00004	R99999	kM_R31_NADH
+Michaelis constant	0.15176282	mM	NADplus	CNL_R99999	C00003	R99999	kM_R31_NADplus
+Michaelis constant	1.5684517	mM	Orthophosphate	CNL_R99999	C00009	R99999	kM_R31_Orthophosphate
+Michaelis constant	1.8630964	mM	Phosphoenolpyruvate	CNL_R99999	C00074	R99999	kM_R31_Phosphoenolpyruvate
 substrate catalytic rate constant	350	1/s		PTS_RPTSsy		RPTSsy	kcrf_R1
 substrate catalytic rate constant	350	1/s		PGI_R02740		R02740	kcrf_R2
 substrate catalytic rate constant	350	1/s		PFK_R04779		R04779	kcrf_R3
@@ -273,6 +283,7 @@ substrate catalytic rate constant	341.79735	1/s		SDH_R02164		R02164	kcrf_R27
 substrate catalytic rate constant	506.04068	1/s		FUM_R01082		R01082	kcrf_R28
 substrate catalytic rate constant	338.53807	1/s		MDH_R00342		R00342	kcrf_R29
 substrate catalytic rate constant	251.47113	1/s		PPC_R00345		R00345	kcrf_R30
+substrate catalytic rate constant	70	1/s		CNL_R99999		R99999	kcrf_R31
 product catalytic rate constant	323.99926	1/s		PTS_RPTSsy		RPTSsy	kcrr_R1
 product catalytic rate constant	353.78871	1/s		PGI_R02740		R02740	kcrr_R2
 product catalytic rate constant	320.64322	1/s		PFK_R04779		R04779	kcrr_R3
@@ -303,6 +314,7 @@ product catalytic rate constant	138.9898	1/s		SDH_R02164		R02164	kcrr_R27
 product catalytic rate constant	166.55828	1/s		FUM_R01082		R01082	kcrr_R28
 product catalytic rate constant	311.3955	1/s		MDH_R00342		R00342	kcrr_R29
 product catalytic rate constant	396.795	1/s		PPC_R00345		R00345	kcrr_R30
+product catalytic rate constant	70	1/s		CNL_R99999		R99999	kcrr_R31
 concentration of enzyme	NaN	mM		PTS_RPTSsy		RPTSsy	u_R1
 concentration of enzyme	NaN	mM		PGI_R02740		R02740	u_R2
 concentration of enzyme	NaN	mM		PFK_R04779		R04779	u_R3
@@ -333,6 +345,7 @@ concentration of enzyme	NaN	mM		SDH_R02164		R02164	u_R27
 concentration of enzyme	NaN	mM		FUM_R01082		R01082	u_R28
 concentration of enzyme	NaN	mM		MDH_R00342		R00342	u_R29
 concentration of enzyme	NaN	mM		PPC_R00345		R00345	u_R30
+concentration of enzyme	NaN	mM		CNL_R99999		R00345	u_R30
 %							
 !!SBtab DocumentName='Model' TableName='Position' TableType='Position' SBtabVersion='0.8'							
 !Element	!PositionX	!PositionY					
@@ -411,13 +424,13 @@ PPC_R00345	0.40095304	0.50690003
 !QuantityType	!Reaction	!Reaction:Identifiers:kegg.reaction	!Flux				
 flux	PTS_RPTSsy	RPTSsy	0.5691				
 flux	PGI_R02740	R02740	0.385				
-flux	PFK_R04779	R04779	0.4417				
-flux	ALD_R01070	R01070	0.44702				
-flux	TIM_R01015	R01015	0.4445				
-flux	GAP_R01061	R01061	0.9163				
-flux	PGK_R01512	R01512	0.8946				
-flux	PGM_R01518	R01518	0.8729				
-flux	PGH_R00658	R00658	0.91875				
+flux	PFK_R04779	R04779	0.0417				
+flux	ALD_R01070	R01070	0.04702				
+flux	TIM_R01015	R01015	0.0445				
+flux	GAP_R01061	R01061	0.1163				
+flux	PGK_R01512	R01512	0.0946				
+flux	PGM_R01518	R01518	0.0729				
+flux	PGH_R00658	R00658	0.11875				
 flux	PYK_R00200	R00200	0.1841				
 flux	PDH_R00209	R00209	0.3787				
 flux	ZWF_R00835	R00835	0.1813				
@@ -439,6 +452,7 @@ flux	SDH_R02164	R02164	0.0924
 flux	FUM_R01082	R01082	0.0924				
 flux	MDH_R00342	R00342	0.0602				
 flux	PPC_R00345	R00345	-0.2114				
+flux	CNL_R99999	R99999	0.4				
 %							
 !!SBtab DocumentName='Model' TableName='GibbsEnergyOfFormation' TableType='Quantity' Unit='kJ/mol' StandardConcentration='1mM' SBtabVersion='0.8'							
 !QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Value				
@@ -515,6 +529,7 @@ standard Gibbs energy of reaction	SDH_R02164	R02164	-21.595126	-21.576753	Ubiqui
 standard Gibbs energy of reaction	FUM_R01082	R01082	-3.4486706	-3.4457364	Fumarate <=> _S__Malate		
 standard Gibbs energy of reaction	MDH_R00342	R00342	26.918927	26.896024	_S__Malate + NADplus <=> NADH + Oxaloacetate		
 standard Gibbs energy of reaction	PPC_R00345	R00345	34.458646	36.7	Orthophosphate + Oxaloacetate <=> CO2 + Phosphoenolpyruvate		
+standard Gibbs energy of reaction	CNL_R99999	R99999	-6.7217847	-6.7217847	D_Fructose_6_phosphate + 2 Orthophosphate + 2 NADplus + ADP <=> 2 Phosphoenolpyruvate + 2 H2O + 2 NADH + ATP		
 %							
 !!SBtab DocumentName='Model' TableName='ConcentrationConstraint' TableType='Quantity' Unit='mM' SBtabVersion='0.8'							
 !QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration:Min	!Concentration:Max			

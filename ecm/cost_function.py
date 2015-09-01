@@ -271,7 +271,13 @@ class EnzymeCostFunction(object):
             enzyme cost per flux, i.e. sum(ECF(lnC))
         """
         
-        def optfun(lnC, regularization=1e-1):
+        def optfun(lnC, regularization=1e-2):
+            """
+                regularization function:
+                    d      = x - 0.5 * (x_min + x_max)
+                    lambda = median(enzyme cost weights)
+                    reg    = 0.01 * lambda * 0.5 * (d.T * d)
+            """
             lnC = CastToColumnVector(lnC)
 
             # if some reaction is not feasible, give a large penalty 
@@ -287,21 +293,29 @@ class EnzymeCostFunction(object):
             lnE = np.log(e)
             
             if regularization is not None:
-                d = lnC - np.log(1e-4)
-                lnE += regularization * d.T * d
+                d = lnC - 0.5*(lnC.min() + lnC.max())
+                lnE += regularization * 0.5 * float(d.T * d)
             
             return lnE
                 
         assert lnC0.shape == (self.Nc, 1)
 
         bounds = zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat)
-        res = minimize(optfun, lnC0, bounds=bounds, method='SLSQP')
-        #res = minimize(optfun, lnC0, bounds=bounds, method='TNC')
+
+        res = []        
+        for i in xrange(10):
+            lnC0_rand = np.multiply(lnC0, 1.0 + 0.1*np.random.rand(lnC0.shape[0], 1))
+            r = minimize(optfun, x0=lnC0_rand, bounds=bounds, method='SLSQP')
+                
+            if not r.success:
+                continue
+            
+            res.append((optfun(r.x), r.x))
+            print optfun(r.x), 
         
-        if not res.success:
-            print res
+        res.sort()
         
-        lnC_min = np.matrix(res.x).T
+        lnC_min = np.matrix(res[0][1]).T
         return lnC_min
 
     def MDF(self):
