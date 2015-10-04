@@ -11,7 +11,9 @@ import sqlite3
 import matplotlib.pyplot as plt
 import pandas
 import logging
-from tablib.dictionary.sbtab_dict import SBtabDict
+import sys
+sys.path.append(os.path.expanduser('~/git/SBtab/python'))
+from sqlite_interface.sbtab_dict import SBtabDict
 pandas.options.display.mpl_style = 'default'
 
 l = logging.getLogger()
@@ -35,7 +37,7 @@ if not os.path.exists(sqlite_fpath):
 logging.info('Reading data from SQLite database: ' + sqlite_fpath)
 sbtab_dict = SBtabDict.FromSQLite(sqlite_fpath)
 logging.info('Creating an ECM model using the data')
-model = ECMmodel(sbtab_dict)
+model = ECMmodel(sbtab_dict, dG0_source='component_contribution')
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
 
