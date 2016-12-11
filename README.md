@@ -10,6 +10,11 @@ enzyme level to get the minimal enzyme cost needed to achieve a certain
 pathway flux.
 
 Dependencies:
-- Ubuntu packages: (sudo apt-get install liblapack-dev)
-- PyPI packages: (sudo pip install cvxopt cvxpy ecos)
-
+- Ubuntu packages: (sudo apt-get install X)
+    - liblapack-dev (3.6.0)
+- PyPI packages:   (sudo pip install X)
+    - cvxopt (1.1.9)
+    - cvxpy  (0.4.8)
+    - ecos   (2.0.4)
+    
+- SBtab: (git clone https://github.com/derHahn/SBtab.git)

@@ -12,7 +12,8 @@ import os
 import sqlite3
 import matplotlib.pyplot as plt
 import logging
-from tablib.dictionary.sbtab_dict import SBtabDict
+sys.path.append(os.path.expanduser('~/git/SBtab/python'))
+from sqlite_interface.sbtab_dict import SBtabDict
 import seaborn as sns
 from errors import ThermodynamicallyInfeasibleError
 import numpy as np
