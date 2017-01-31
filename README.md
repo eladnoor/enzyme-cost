@@ -19,8 +19,13 @@ Dependencies:
     - cvxpy  (0.4.8)
     - ecos   (2.0.4)
     - seaborn (0.7.1)
-    - matplotlib (1.5.3)
-    - numpy (1.11.2)
+    - matplotlib (2.0.0)
+    - numpy (1.12.0)
     - scipy (0.18.1)
+    - pulp (1.6.1)
+    - pyparsing (2.1.10)
     
 - SBtab: (git clone https://github.com/derHahn/SBtab.git)
+
+- Component Contribution: (git clone https://github.com/eladnoor/component-contribution.git)
+
