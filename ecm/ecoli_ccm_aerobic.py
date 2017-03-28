@@ -19,7 +19,7 @@ from errors import ThermodynamicallyInfeasibleError
 import numpy as np
 sns.set()
 sns.axes_style("darkgrid")
-    
+
 l = logging.getLogger()
 l.setLevel(logging.INFO)
 
@@ -66,14 +66,14 @@ if USE_WOLF_CONCENTRATIONS:
         for rdict in csv_reader:
             cid = rdict['!Compound:Identifiers:kegg.compound']
             cid2conc[cid] = 1e-3*float(rdict['ecf3sp'])
-            
+
         cid2conc['C00001'] = 1
-        
+
     lnC_ECM = np.log(np.matrix(map(cid2conc.get, model.kegg_model.cids), dtype=float).T)
 else:
     # solve the ECM problem using convex optimization
     logging.info('Solving ECM problem')
-    lnC_ECM = model.ECM()
+    lnC_ECM = model.ECM(n_iter=15)
 
 #fig4 = plt.figure(figsize=(14, 5))
 #ax_a = fig4.add_subplot(1, 2, 1)
@@ -115,16 +115,3 @@ model.WriteHtmlTables(lnC_ECM, html)
 html.write('</p>\n')
 
 html.close()
-
-
-# make plots also in linear scale just for fun
-fig3 = plt.figure(figsize=(14, 6))
-fig3.suptitle('Valdiation')
-ax_enz = fig3.add_subplot(1, 2, 1, xscale='linear', yscale='linear')
-ax_enz.set_title('eCF3(1SP) Enzyme concentrations')
-ax_met = fig3.add_subplot(1, 2, 2, xscale='linear', yscale='linear')
-ax_met.set_title('eCF3(1SP) Metabolite concentrations')
-
-model.ValidateMetaboliteConcentrations(lnC_ECM, ax_met, scale='linear')
-model.ValidateEnzymeConcentrations(lnC_ECM, ax_enz, scale='linear')
-fig3.show()
