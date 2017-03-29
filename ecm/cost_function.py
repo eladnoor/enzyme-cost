@@ -11,6 +11,8 @@ from optimized_bottleneck_driving_force import Pathway
 from component_contribution.thermodynamic_constants import default_RT as RT
 from util import CastToColumnVector
 
+QUAD_REGULARIZATION_COEFF = 0.2
+
 class NonSteadyStateSolutionError(Exception):
     pass
 
@@ -28,10 +30,14 @@ class EnzymeCostFunction(object):
 
     ECF_LEVEL_NAMES = ['capacity [M]', 'thermodynamic', 'saturation', 'allosteric']
 
-    def __init__(self, S, flux, kcat, dG0, KMM, lnC_bounds,
+    def __init__(self, S, flux, kcat,
+                 dG0, KMM, lnC_bounds,
                  mw_enz=None, mw_met=None,
                  A_act=None, A_inh=None, K_act=None, K_inh=None,
-                 ecf_version='ECF4'):
+                 kcat_source='gmean',
+                 ecf_version=4,
+                 denom_version='1SP',
+                 regularization='volume'):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
 
@@ -39,6 +45,7 @@ class EnzymeCostFunction(object):
                 S        - stoichiometric matrix [unitless]
                 v        - steady-state fluxes [M/s]
                 kcat     - turnover numbers [1/s]
+                kcat_source - either 'gmean' or 'fwd'
                 dG0      - standard Gibbs free energies of reaction [kJ/mol]
                 KMM      - Michaelis-Menten coefficients [M]
                 A_act    - Hill coefficient matrix of allosteric activators [unitless]
@@ -67,6 +74,15 @@ class EnzymeCostFunction(object):
         self.S_prod = abs(self.S)
         self.S_subs[self.S > 0] = 0
         self.S_prod[self.S < 0] = 0
+
+        # if the kcat source is 'gmean' we need to recalculate the
+        # kcat_fwd using the formula:
+        # kcat_fwd = kcat_gmean * sqrt(kEQ * prod_S(KMM) / prod_P(KMM))
+        if kcat_source == 'gmean':
+            ln_KMM_prod = np.matrix(np.diag(self.S.T * np.log(self.KMM))).T
+            ln_ratio = -ln_KMM_prod - self.dG0/RT
+            factor = np.sqrt(np.exp(ln_ratio))
+            self.kcat = np.multiply(self.kcat, factor)
 
         # molecular weights of enzymes and metabolites
         if mw_enz is None:
@@ -106,15 +122,22 @@ class EnzymeCostFunction(object):
 
         # preprocessing: these auxiliary matrices help calculate the ECF3 and
         # ECF4 faster.
-        self.subs_denom = np.matrix(np.diag(self.S_subs.T * np.log(self.KMM))).T
-        self.prod_denom = np.matrix(np.diag(self.S_prod.T * np.log(self.KMM))).T
+        self.D_S_coeff = np.matrix(np.diag(self.S_subs.T * np.log(self.KMM))).T
+        self.D_P_coeff = np.matrix(np.diag(self.S_prod.T * np.log(self.KMM))).T
         self.act_denom = np.matrix(np.diag(self.A_act.T * np.log(self.K_act))).T
         self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(self.K_inh))).T
 
         try:
-            self.ECF = eval('self.' + ecf_version)
+            self.ECF = eval('self._ECF%d' % ecf_version)
         except AttributeError:
             raise ValueError('The enzyme cost function %s is unknown' % ecf_version)
+
+        try:
+            self.D = eval('self._D_%s' % denom_version)
+        except AttributeError:
+            raise ValueError('The denominator function %s is unknown' % denom_version)
+
+        self.regularization = regularization
 
     def Serialize(self):
         mdict = {'S' : self.S,
@@ -144,7 +167,8 @@ class EnzymeCostFunction(object):
         assert lnC.shape[0] == self.Nc
         df = self._DrivingForce(lnC)
 
-        # replace infeasbile reactions with a positive driving force to avoid negative cost in ECF2
+        # replace infeasbile reactions with a positive driving force to avoid
+        # negative cost in ECF2
         eta_thermo = 1.0 - np.exp(-df)
 
         # set the value of eta to a negative number when the reaction is infeasible
@@ -153,21 +177,76 @@ class EnzymeCostFunction(object):
         eta_thermo[df <= 0] = -1.0
         return eta_thermo
 
-    def _STerm(self, lnC):
-        assert lnC.shape[0] == self.Nc
-        return np.exp(self.S_subs.T * lnC - np.tile(self.subs_denom, (1, lnC.shape[1])))
+    def _D_S(self, lnC):
+        """
+            return a matrix containing the values of D_S
+            i.e. prod(s_i / K_i)^n_i
 
-    def _PTerm(self, lnC):
+            each row corresponds to a reaction in the model
+            each column corresponds to another set of concentrations (assuming
+            lnC is a matrix)
+        """
         assert lnC.shape[0] == self.Nc
-        return np.exp(self.S_prod.T * lnC - np.tile(self.prod_denom, (1, lnC.shape[1])))
+        return np.exp(self.S_subs.T * lnC - np.tile(self.D_S_coeff, (1, lnC.shape[1])))
+
+    def _D_SP(self, lnC):
+        """
+            return a matrix containing the values of D_SP
+            i.e. prod(s_i / K_i)^n_i + prod(p_j / K_j)^n_j
+
+            each row corresponds to a reaction in the model
+            each column corresponds to another set of concentrations (assuming
+            lnC is a matrix)
+        """
+        assert lnC.shape[0] == self.Nc
+        return np.exp(self.S_subs.T * lnC - np.tile(self.D_S_coeff, (1, lnC.shape[1]))) + \
+               np.exp(self.S_prod.T * lnC - np.tile(self.D_P_coeff, (1, lnC.shape[1])))
+
+    def _D_1S(self, lnC):
+        """
+            return a matrix containing the values of D_1S
+            i.e. 1 + prod(s_i / K_i)^n_i
+
+            each row corresponds to a reaction in the model
+            each column corresponds to another set of concentrations (assuming
+            lnC is a matrix)
+        """
+        return 1.0 + self._D_S(lnC)
+
+    def _D_1SP(self, lnC):
+        """
+            return a matrix containing the values of D_1SP
+            i.e. 1 + prod(s_i / K_i)^n_i + prod(p_j / K_j)^n_j
+
+            each row corresponds to a reaction in the model
+            each column corresponds to another set of concentrations (assuming
+            lnC is a matrix)
+        """
+        return 1.0 + self._D_SP(lnC)
+
+    def _D_CM(self, lnC):
+        """
+            return a matrix containing the values of D_CM
+            i.e. prod(1 + s_i / K_i)^n_i + prod(1 + p_j / K_j)^n_j - 1
+
+            each row corresponds to a reaction in the model
+            each column corresponds to another set of concentrations (assuming
+            lnC is a matrix)
+        """
+        assert lnC.shape[0] == self.Nc
+        D = np.matrix(np.zeros((self.Nr, lnC.shape[1])))
+        for k in xrange(lnC.shape[1]):
+            X_k = np.log(np.exp(np.tile(lnC[:, k], (1, self.Nr))) / self.KMM + 1.0)
+            ln_1_plus_S = np.matrix(np.diag(self.S_subs.T * X_k)).T
+            ln_1_plus_P = np.matrix(np.diag(self.S_prod.T * X_k)).T
+            D[:, k] = np.exp(ln_1_plus_S) + np.exp(ln_1_plus_P) - 1.0
+        return D
 
     def _EtaKinetic(self, lnC):
         """
-            the kinetic part of eMC3(1SP), i.e. S / (1 + S + P)
+            the kinetic part of ECF3 and ECF4
         """
-        S = self._STerm(lnC)
-        P = self._PTerm(lnC)
-        return S/(1.0 + S + P)
+        return self._D_S(lnC) / self.D(lnC)
 
     def _EtaAllosteric(self, lnC):
         assert lnC.shape[0] == self.Nc
@@ -192,7 +271,7 @@ class EnzymeCostFunction(object):
         assert E.shape == (self.Nr, 1)
         return np.multiply(self.kcat, E) # in M/s
 
-    def ECF1(self, lnC):
+    def _ECF1(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -206,7 +285,7 @@ class EnzymeCostFunction(object):
         assert lnC.shape == (self.Nc, 1)
         return np.tile(np.multiply(self.flux, 1.0/self.kcat), (1, lnC.shape[1]))
 
-    def ECF2_S(self, lnC):
+    def _ECF2(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -216,14 +295,14 @@ class EnzymeCostFunction(object):
                 Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
-        ECF2 = np.multiply(self.ECF1(lnC), 1.0/self._EtaThermodynamic(lnC))
+        ecf2 = np.multiply(self._ECF1(lnC), 1.0/self._EtaThermodynamic(lnC))
 
         # fix the "fake" values that were given in ECF2 to infeasible reactions
-        ECF2[ECF2 < 0] = np.nan
+        ecf2[ecf2 < 0] = np.nan
 
-        return ECF2
+        return ecf2
 
-    def ECF3_1SP(self, lnC):
+    def _ECF3(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -235,9 +314,9 @@ class EnzymeCostFunction(object):
         """
         # calculate the product of all substrates and products for the kinetic term
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self.ECF2_S(lnC), 1.0/self._EtaKinetic(lnC))
+        return np.multiply(self._ECF2(lnC), 1.0/self._EtaKinetic(lnC))
 
-    def ECF4(self, lnC):
+    def _ECF4(self, lnC):
         """
             Arguments:
                 A single metabolite ln-concentration vector
@@ -248,7 +327,7 @@ class EnzymeCostFunction(object):
                 Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self.ECF3SP(lnC), 1.0/self._EtaAllosteric(lnC))
+        return np.multiply(self._ECF3(lnC), 1.0/self._EtaAllosteric(lnC))
 
     def GetEnzymeCostPartitions(self, lnC):
         """
@@ -262,7 +341,7 @@ class EnzymeCostFunction(object):
                 The other columns are unitless (added cost, always > 1)
         """
         assert lnC.shape == (self.Nc, 1)
-        cap = self.ECF1(lnC)                  # capacity
+        cap = self._ECF1(lnC)                 # capacity
         trm = 1.0/self._EtaThermodynamic(lnC) # thermodynamics
         kin = 1.0/self._EtaKinetic(lnC)       # kinetics
         alo = 1.0/self._EtaAllosteric(lnC)    # allostery
@@ -301,17 +380,19 @@ class EnzymeCostFunction(object):
                 return 1e20 * abs(minimal_df)
 
             e = np.dot(self.ECF(lnC).T, self.mw_enz)
-            e += np.dot(np.exp(lnC.T), self.mw_met)
             if np.isnan(e) or e <= 0:
                 raise Exception('ECF returns NaN although all reactions are feasible')
 
-            lnE = np.log(e)
-
-            if regularization is not None:
+            if self.regularization == None:
+                return np.log(e)
+            elif self.regularization == 'volume':
+                e += np.dot(np.exp(lnC.T), self.mw_met)
+                return np.log(e)
+            elif self.regularization == 'quadratic':
                 d = lnC - 0.5*(lnC.min() + lnC.max())
-                lnE += regularization * 0.5 * float(d.T * d)
-
-            return lnE
+                return np.log(e) + QUAD_REGULARIZATION_COEFF * 0.5 * float(d.T * d)
+            else:
+                raise Exception('Unknown regularization: ' + self.regularization)
 
         assert lnC0.shape == (self.Nc, 1)
 

@@ -19,31 +19,37 @@ from errors import ThermodynamicallyInfeasibleError
 import types
 
 CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/content/241/10/2200.full.pdf+html]
+DEFAULT_ECF_VERSION = 3
 DEFAULT_DG0_SOURCE = 'keq_table' # options are: 'keq_table', 'dG0r_table' or 'component_contribution'
-DEFAULT_KCAT_SOURCE = 'fwd' # options are: 'fwd' or 'gmean'
+DEFAULT_KCAT_SOURCE = 'gmean' # options are: 'fwd' or 'gmean'
+DEFAULT_DENOMINATOR = '1SP'
+DEFAULR_REGULARIZATION = None
 
 str2bool = lambda x : x not in [0, 'false', 'False']
 
 class ECMmodel(object):
 
-    def __init__(self, sbtab_dict,
-                 ecf_version='ECF3_1SP',
+    def __init__(self, model_sbtab, validate_sbtab,
+                 ecf_version=DEFAULT_ECF_VERSION,
+                 denom_version=DEFAULT_DENOMINATOR,
+                 regularization=DEFAULR_REGULARIZATION,
                  dG0_source=DEFAULT_DG0_SOURCE,
                  kcat_source=DEFAULT_KCAT_SOURCE):
-        self._sbtab_dict = sbtab_dict
-        self.kegg2met = self._sbtab_dict.GetDictFromTable('Compound',
-            'Compound:Identifiers:kegg.compound', 'Name')
-        self.kegg2rxn = self._sbtab_dict.GetDictFromTable('Reaction',
-            'Reaction', 'NameForPlots')
-        self.kegg_model = ECMmodel.GenerateKeggModel(self._sbtab_dict)
+        self._model_sbtab = model_sbtab
+        self._validate_sbtab = validate_sbtab
+        self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
+            'Compound:Identifiers:kegg.compound', 'NameForPlots')
+        self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
+            'ID', 'NameForPlots')
+        self.kegg_model = ECMmodel.GenerateKeggModel(self._model_sbtab)
 
         # a dictionary indicating which compound is external or not
-        if '!External' in self._sbtab_dict['Compound'].columns:
+        if '!External' in self._model_sbtab['Compound'].columns:
             ext_col_name = 'External'
         else:
             ext_col_name = 'IsConstant'
 
-        self.cid2external = self._sbtab_dict.GetDictFromTable(
+        self.cid2external = self._model_sbtab.GetDictFromTable(
             'Compound', 'Compound:Identifiers:kegg.compound', ext_col_name,
             value_mapping=str2bool)
 
@@ -51,7 +57,7 @@ class ECMmodel(object):
         self.kegg_model.check_S_balance(fix_water=True)
 
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw = \
-            ECMmodel._ReadKineticParameters(self._sbtab_dict)
+            ECMmodel._ReadKineticParameters(self._model_sbtab)
 
         if dG0_source == 'keq_table':
             self._CalcGibbsEnergiesFromKeq(rid2keq)
@@ -63,13 +69,21 @@ class ECMmodel(object):
             raise ValueError('unrecognized dG0 source: ' + dG0_source)
 
         # read flux values and convert them to M/s
-        flux_units = self._sbtab_dict.GetTableAttribute('Flux', 'Unit')
+        flux_units = self._model_sbtab.GetTableAttribute('Flux', 'Unit')
         flux_mapping = ECMmodel._MappingToCanonicalFluxUnits(flux_units)
-        self.rid2flux = self._sbtab_dict.GetDictFromTable(
-            'Flux', 'Reaction', 'Flux', value_mapping=flux_mapping)
+        self.rid2flux = self._model_sbtab.GetDictFromTable(
+            'Flux', 'Reaction', 'Value', value_mapping=flux_mapping)
 
         flux = np.matrix(map(self.rid2flux.get, self.kegg_model.rids)).T
 
+        # we only need to define get kcat in the direction of the flux
+        # if we use the 'gmean' option, that means we assume we only know
+        # the geometric mean of the kcat, and we distribute it between
+        # kcat_fwd and kcat_bwd according to the Haldane relationship
+        # if we use the 'fwd' option, we just take the kcat in the
+        # direction of flux (as is) and that would mean that our
+        # thermodynamic rate law would be equivalent to calculating the
+        # reverse kcat using the Haldane relationship
         if kcat_source == 'gmean':
             kcat = np.matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
         elif kcat_source == 'fwd':
@@ -101,9 +115,13 @@ class ECMmodel(object):
         mw_enz = np.matrix(map(rid2mw.get, self.kegg_model.rids)).T
         mw_met = np.matrix(map(cid2mw.get, self.kegg_model.cids)).T
 
-        self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat, dG0=dG0, KMM=KMM,
+        self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat,
+                                      kcat_source=kcat_source,
+                                      regularization=regularization,
+                                      dG0=dG0, KMM=KMM,
                                       mw_enz=mw_enz, mw_met=mw_met,
-                                      lnC_bounds=lnC_bounds, ecf_version=ecf_version)
+                                      lnC_bounds=lnC_bounds, ecf_version=ecf_version,
+                                      denom_version=denom_version)
 
     def WriteMatFile(self, file_name):
         mdict = self.ecf.Serialize()
@@ -114,11 +132,11 @@ class ECMmodel(object):
 
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
-        met2kegg = sbtab_dict.GetDictFromTable('Compound', 'Compound',
+        met2kegg = sbtab_dict.GetDictFromTable('Compound', 'ID',
             'Compound:Identifiers:kegg.compound')
 
-        reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'Reaction')
-        reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'SumFormula')
+        reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'ID')
+        reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'ReactionFormula')
         sparse_reactions = map(ParseReaction, reaction_formulas)
 
         map_met2kegg = lambda spr : {met2kegg.get(k): v for (k,v) in spr.iteritems()}
@@ -163,10 +181,8 @@ class ECMmodel(object):
                     value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
                     rid_cid2KMM[rid, cid] = value_mapping(val)
                 elif typ == 'equilibrium constant':
-                    assert unit == ''
+                    assert unit == 'dimensionless'
                     rid2keq[rid] = val
-                elif typ == 'concentration of enzyme':
-                    pass
                 elif typ == 'enzyme molecular weight':
                     assert unit == 'Da'
                     rid2mw[rid] = val
@@ -177,7 +193,7 @@ class ECMmodel(object):
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
             except AssertionError as e:
                 raise ValueError('Syntax error in SBtab table %s, row %d - %s' %
-                                 (table_name, i, str(e)))
+                                 (table_name, i, row))
         return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw
 
     def _GibbsEnergyFromMilliMolarToMolar(self, dGm):
@@ -217,9 +233,9 @@ class ECMmodel(object):
             it's better to take the values from the SBtab since they are processed
             by the parameter balancing funcion
         """
-        dG0_units = self._sbtab_dict.GetTableAttribute('GibbsEnergyOfReaction', 'Unit')
+        dG0_units = self._model_sbtab.GetTableAttribute('GibbsEnergyOfReaction', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalEnergyUnits(dG0_units)
-        rid2dGm = self._sbtab_dict.GetDictFromTable(
+        rid2dGm = self._model_sbtab.GetDictFromTable(
             'GibbsEnergyOfReaction', 'Reaction', 'Value', value_mapping=value_mapping)
         dGm_prime = np.matrix(map(rid2dGm.get, self.kegg_model.rids), dtype=float).T
         dG0_prime = self._GibbsEnergyFromMilliMolarToMolar(dGm_prime)
@@ -230,12 +246,12 @@ class ECMmodel(object):
             read the lower and upper bounds and convert them to M.
             verify that the values make sense.
         """
-        bound_units = self._sbtab_dict.GetTableAttribute('ConcentrationConstraint', 'Unit')
+        bound_units = self._model_sbtab.GetTableAttribute('ConcentrationConstraint', 'Unit')
         bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
-        self.cid2min_bound = self._sbtab_dict.GetDictFromTable(
+        self.cid2min_bound = self._model_sbtab.GetDictFromTable(
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
             value_mapping=bound_mapping)
-        self.cid2max_bound = self._sbtab_dict.GetDictFromTable(
+        self.cid2max_bound = self._model_sbtab.GetDictFromTable(
             'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
             value_mapping=bound_mapping)
 
@@ -362,19 +378,19 @@ class ECMmodel(object):
         raise ValueError('Cannot convert these units to M/s: ' + unit)
 
     def _GetMeasuredMetaboliteConcentrations(self):
-        unit = self._sbtab_dict.GetTableAttribute('Concentration', 'Unit')
+        unit = self._validate_sbtab.GetTableAttribute('Concentration', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
 
         # assume concentrations are in mM
-        return self._sbtab_dict.GetDictFromTable(
+        return self._validate_sbtab.GetDictFromTable(
             'Concentration', 'Compound:Identifiers:kegg.compound',
             'Concentration', value_mapping=value_mapping)
 
     def _GetMeasuredEnzymeConcentrations(self):
-        unit = self._sbtab_dict.GetTableAttribute('EnzymeConcentration', 'Unit')
+        unit = self._validate_sbtab.GetTableAttribute('EnzymeConcentration', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
 
-        return self._sbtab_dict.GetDictFromTable(
+        return self._validate_sbtab.GetDictFromTable(
             'EnzymeConcentration', 'Reaction',
             'EnzymeConcentration', value_mapping=value_mapping)
 
