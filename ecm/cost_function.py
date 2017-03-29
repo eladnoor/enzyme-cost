@@ -379,18 +379,21 @@ class EnzymeCostFunction(object):
             if minimal_df <= 0:
                 return 1e20 * abs(minimal_df)
 
-            e = np.dot(self.ECF(lnC).T, self.mw_enz)
+            enz_conc = self.ECF(lnC)
+            met_conc = np.exp(lnC)
+
+            e = np.dot(enz_conc.T, self.mw_enz)
+            m = np.dot(met_conc.T, self.mw_met)
             if np.isnan(e) or e <= 0:
                 raise Exception('ECF returns NaN although all reactions are feasible')
 
             if self.regularization == None:
-                return np.log(e)
+                return e
             elif self.regularization == 'volume':
-                e += np.dot(np.exp(lnC.T), self.mw_met)
-                return np.log(e)
+                return e + m
             elif self.regularization == 'quadratic':
                 d = lnC - 0.5*(lnC.min() + lnC.max())
-                return np.log(e) + QUAD_REGULARIZATION_COEFF * 0.5 * float(d.T * d)
+                return e + QUAD_REGULARIZATION_COEFF * 0.5 * float(d.T * d)
             else:
                 raise Exception('Unknown regularization: ' + self.regularization)
 
