@@ -394,6 +394,31 @@ class ECMmodel(object):
             'EnzymeConcentration', 'Reaction',
             'EnzymeConcentration', value_mapping=value_mapping)
 
+    def PlotVolumes(self, lnC, ax):
+        width = 0.8
+
+        labels = map(self.kegg2rxn.get, self.kegg_model.rids)
+        labels += map(self.kegg2met.get, self.kegg_model.cids)
+        enz_vol, met_vol = self.ecf.GetVolumes(lnC)
+
+        vols = np.vstack((enz_vol, met_vol))
+
+        colors = [(0.5, 0.8, 0.3)] * enz_vol.shape[0] + \
+                 [(0.3, 0.5, 0.8)] * met_vol.shape[0]
+
+        # remove H2O from the list and sort by descending volume
+        bar_data = zip(vols, labels, colors)
+        bar_data = filter(lambda x: x[1] != 'h2o', bar_data)
+        bar_data.sort(reverse=True)
+        vols, labels, colors = zip(*bar_data)
+
+        ind = np.arange(len(bar_data))
+        ax.bar(ind, vols, width, color=colors)
+
+        ax.set_xticks(ind)
+        ax.set_xticklabels(labels, size='medium', rotation=90)
+        ax.set_ylabel('total weight [g/L]')
+
     def PlotEnzymeCosts(self, lnC, ax, top_level=3, plot_measured=False):
         """
             A bar plot in log-scale showing the partitioning of cost between
@@ -427,25 +452,26 @@ class ECMmodel(object):
         if plot_measured:
             all_labels = ['measured'] + labels
             meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
-            meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids), dtype=float).T
-            cmap = colors.ColorMap(all_labels, saturation=0.7, value=1.0, hues=[30.0/255, 170.0/255, 200.0/255, 5.0/255])
-            #ax.bar(ind, meas_conc, width, bottom=bottoms[:, 0],
-            #       color=cmap['measured'], alpha=0.3)
-            ax.plot(ind+width/2.0, meas_conc, color=cmap['measured'], marker='o', markersize=5, linewidth=0,
-                    markeredgewidth=0.3, markeredgecolor=(0.3,0.3,0.3))
+            meas_conc = np.matrix(map(meas_enz2conc.get, self.kegg_model.rids),
+                                  dtype=float).T
+            cmap = colors.ColorMap(all_labels, saturation=0.7, value=1.0,
+                                   hues=[30.0/255, 170.0/255, 200.0/255, 5.0/255])
+            ax.plot(ind, meas_conc, color=cmap['measured'], marker='o',
+                    markersize=5, linewidth=0,
+                    markeredgewidth=0.3, markeredgecolor=(0.3, 0.3, 0.3))
         else:
             all_labels = labels
-            cmap = colors.ColorMap(labels, saturation=0.7, value=0.8, hues=[170.0/255, 200.0/255, 5.0/255])
+            cmap = colors.ColorMap(labels, saturation=0.7, value=0.8,
+                                   hues=[170.0/255, 200.0/255, 5.0/255])
 
         for i, label in enumerate(labels):
             ax.bar(ind, steps[:, i], width,
                    bottom=bottoms[:, i], color=cmap[label])
 
-        ax.set_xticks(ind + width/2)
+        ax.set_xticks(ind)
         xticks = map(self.kegg2rxn.get, self.kegg_model.rids)
         ax.set_xticklabels(xticks, size='medium', rotation=90)
         ax.legend(all_labels, loc='best', framealpha=0.2)
-        #ax.set_xlabel('reaction')
         ax.set_ylabel('enzyme cost [M]')
         ax.set_ylim(ymin=base)
 

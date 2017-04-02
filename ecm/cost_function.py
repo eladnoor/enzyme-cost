@@ -341,11 +341,27 @@ class EnzymeCostFunction(object):
                 The other columns are unitless (added cost, always > 1)
         """
         assert lnC.shape == (self.Nc, 1)
-        cap = self._ECF1(lnC)                 # capacity
-        trm = 1.0/self._EtaThermodynamic(lnC) # thermodynamics
-        kin = 1.0/self._EtaKinetic(lnC)       # kinetics
-        alo = 1.0/self._EtaAllosteric(lnC)    # allostery
+        cap = self._ECF1(lnC)                  # capacity
+        trm = 1.0/self._EtaThermodynamic(lnC)  # thermodynamics
+        kin = 1.0/self._EtaKinetic(lnC)        # kinetics
+        alo = 1.0/self._EtaAllosteric(lnC)     # allostery
         return np.hstack([cap, trm, kin, alo])
+
+    def GetVolumes(self, lnC):
+        """
+            Arguments:
+                A single metabolite ln-concentration vector
+
+            Returns:
+                Two arrays containing the enzyme volumes and
+                metabolite volumes (at the provided point)
+        """
+        assert lnC.shape == (self.Nc, 1)
+        enz_conc = self.ECF(lnC)
+        met_conc = np.exp(lnC)
+        enz_vol = np.multiply(enz_conc, self.mw_enz)
+        met_vol = np.multiply(met_conc, self.mw_met)
+        return enz_vol, met_vol
 
     def GetFluxes(self, lnC, E):
         assert len(lnC.shape) == 2
