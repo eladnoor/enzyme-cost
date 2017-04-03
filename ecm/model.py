@@ -394,9 +394,7 @@ class ECMmodel(object):
             'EnzymeConcentration', 'Reaction',
             'EnzymeConcentration', value_mapping=value_mapping)
 
-    def PlotVolumes(self, lnC, ax):
-        width = 0.8
-
+    def _GetVolumeDataForPlotting(self, lnC):
         labels = map(self.kegg2rxn.get, self.kegg_model.rids)
         labels += map(self.kegg2met.get, self.kegg_model.cids)
         enz_vol, met_vol = self.ecf.GetVolumes(lnC)
@@ -407,17 +405,24 @@ class ECMmodel(object):
                  [(0.3, 0.5, 0.8)] * met_vol.shape[0]
 
         # remove H2O from the list and sort by descending volume
-        bar_data = zip(vols, labels, colors)
+        bar_data = zip(vols.flat, labels, colors)
         bar_data = filter(lambda x: x[1] != 'h2o', bar_data)
         bar_data.sort(reverse=True)
         vols, labels, colors = zip(*bar_data)
+        return vols, labels, colors
 
-        ind = np.arange(len(bar_data))
-        ax.bar(ind, vols, width, color=colors)
+    def PlotVolumes(self, lnC, ax):
+        width = 0.8
+        vols, labels, colors = self._GetVolumeDataForPlotting(lnC)
 
-        ax.set_xticks(ind)
+        ax.bar(np.arange(len(vols)), vols, width, color=colors)
         ax.set_xticklabels(labels, size='medium', rotation=90)
         ax.set_ylabel('total weight [g/L]')
+
+    def PlotVolumesPie(self, lnC, ax):
+        vols, labels, colors = self._GetVolumeDataForPlotting(lnC)
+        ax.pie(vols, labels=labels, colors=colors)
+        ax.set_title('total weight [g/L]')
 
     def PlotEnzymeCosts(self, lnC, ax, top_level=3, plot_measured=False):
         """

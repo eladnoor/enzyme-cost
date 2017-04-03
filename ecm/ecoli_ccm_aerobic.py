@@ -82,3 +82,14 @@ model.PlotVolumes(lnC_ECM, ax)
 ax.set_yscale('log')
 fig3.savefig(os.path.join(RES_DIR, '%s_vol.pdf' % exp_name))
 fig3.savefig(os.path.join(RES_DIR, '%s_vol.png' % exp_name), dpi=300)
+
+#%%
+fig4 = plt.figure(figsize=(5, 5))
+ax = fig4.add_subplot(1, 1, 1)
+#model.PlotVolumesPie(lnC_ECM, ax)
+vols, labels, colors = model._GetVolumeDataForPlotting(lnC_ECM)
+ax.pie(vols, labels=labels, colors=colors)
+ax.set_title('total weight = %.2g [g/L]' % sum(vols))
+
+fig4.savefig(os.path.join(RES_DIR, '%s_pie.pdf' % exp_name))
+fig4.savefig(os.path.join(RES_DIR, '%s_pie.png' % exp_name), dpi=300)
