@@ -8,7 +8,7 @@ Created on Wed Feb 18 15:40:11 2015
 import numpy as np
 from scipy.optimize import minimize
 from optimized_bottleneck_driving_force import Pathway
-from component_contribution.thermodynamic_constants import default_RT as RT
+from util import RT
 from util import CastToColumnVector
 
 QUAD_REGULARIZATION_COEFF = 0.2
@@ -86,13 +86,13 @@ class EnzymeCostFunction(object):
 
         # molecular weights of enzymes and metabolites
         if mw_enz is None:
-            self.mw_enz = np.zeros(self.Nr, 1)
+            self.mw_enz = np.zeros((self.Nr, 1))
         else:
-            assert mw_enz.shape == (self.Nr, 1)
+            assert mw_enz.shape == ((self.Nr, 1))
             self.mw_enz = mw_enz
 
         if mw_met is None:
-            self.mw_met = np.zeros(self.Nc, 1)
+            self.mw_met = np.zeros((self.Nc, 1))
         else:
             assert mw_met.shape == (self.Nc, 1)
             self.mw_met = mw_met
@@ -130,7 +130,7 @@ class EnzymeCostFunction(object):
         try:
             self.ECF = eval('self._ECF%d' % ecf_version)
         except AttributeError:
-            raise ValueError('The enzyme cost function %s is unknown' % ecf_version)
+            raise ValueError('The enzyme cost function %d is unknown' % ecf_version)
 
         try:
             self.D = eval('self._D_%s' % denom_version)

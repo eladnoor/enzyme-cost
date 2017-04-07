@@ -31,13 +31,16 @@ _model_sbtab_dict = SBtabDict.FromSBtab(model_sbtab_fpath)
 _validate_sbtab_dict = SBtabDict.FromSBtab(validate_sbtab_fpath)
 
 logging.info('Creating an ECM model using the data')
+
+ecf_version = 3
+denom_version = 'CM'
+ecf_title = 'ECF%d(%s)' % (ecf_version, denom_version)
 model = ECMmodel(_model_sbtab_dict, _validate_sbtab_dict,
-                 ecf_version=3,
-                 denom_version='CM',
+                 ecf_version=ecf_version,
+                 denom_version=denom_version,
                  regularization='volume',
                  dG0_source='keq_table',
                  kcat_source='gmean')
-ecf_title = 'ECF3(CM)'
 
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
