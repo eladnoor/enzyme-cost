@@ -11,12 +11,13 @@ import urllib
 
 RT = 8.31e-3 * 298.15
 CELL_VOL_PER_DW = 2.7e-3 # L/gCDW [Winkler and Wilson, 1966, http://www.jbc.org/content/241/10/2200.full.pdf+html]
-DEFAULTS = {'ECF_VERSION' : 3,
-            'DG0_SOURCE' : 'keq_table', # options are: 'keq_table', 'dG0r_table', or 'component_contribution'
-            'KCAT_SOURCE': 'gmean',     # options are: 'fwd' or 'gmean'
-            'DENOMINATOR': 'CM',        # options are: 'S', 'SP', '1S', '1SP', or 'CM'
-            'REGULARIZATION': 'volume', # options are: None, 'volume', or 'quadratic'
-            }
+ECF_DEFAULTS = {
+    'version'       : 3,
+    'dG0_source'    : 'keq_table', # options are: 'keq_table', 'dG0r_table', or 'component_contribution'
+    'kcat_source'   : 'gmean',     # options are: 'fwd' or 'gmean'
+    'denominator'   : 'CM',        # options are: 'S', 'SP', '1S', '1SP', or 'CM'
+    'regularization': 'volume',    # options are: None, 'volume', or 'quadratic'
+    }
 str2bool = lambda x : x not in [0, 'false', 'False']
 
 def CastToColumnVector(v):

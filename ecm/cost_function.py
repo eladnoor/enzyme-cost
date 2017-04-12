@@ -8,10 +8,11 @@ Created on Wed Feb 18 15:40:11 2015
 import numpy as np
 from scipy.optimize import minimize
 from optimized_bottleneck_driving_force import Pathway
-from util import RT
+from util import RT, ECF_DEFAULTS
 from util import CastToColumnVector
 
 QUAD_REGULARIZATION_COEFF = 0.2
+METABOLITE_WEIGHT_CORRECTION_FACTOR = 1
 
 class NonSteadyStateSolutionError(Exception):
     pass
@@ -34,10 +35,7 @@ class EnzymeCostFunction(object):
                  dG0, KMM, lnC_bounds,
                  mw_enz=None, mw_met=None,
                  A_act=None, A_inh=None, K_act=None, K_inh=None,
-                 kcat_source='gmean',
-                 ecf_version=4,
-                 denom_version='1SP',
-                 regularization='volume'):
+                 params=None):
         """
             Construct a toy model with N intermediate metabolites (and N+1 reactions)
 
@@ -55,6 +53,8 @@ class EnzymeCostFunction(object):
                 c_ranges - list of pairs indicating the min and max
                            allowed metabolite concentration [M]
         """
+        self.params = dict(ECF_DEFAULTS)
+        self.params.update(params)
         self.Nc, self.Nr = S.shape
 
         assert flux.shape       == (self.Nr, 1)
@@ -68,7 +68,6 @@ class EnzymeCostFunction(object):
         self.kcat = kcat
         self.dG0 = dG0
         self.KMM = KMM
-        self.ecf_version = ecf_version
 
         self.S_subs = abs(self.S)
         self.S_prod = abs(self.S)
@@ -78,7 +77,7 @@ class EnzymeCostFunction(object):
         # if the kcat source is 'gmean' we need to recalculate the
         # kcat_fwd using the formula:
         # kcat_fwd = kcat_gmean * sqrt(kEQ * prod_S(KMM) / prod_P(KMM))
-        if kcat_source == 'gmean':
+        if self.params['kcat_source'] == 'gmean':
             ln_KMM_prod = np.matrix(np.diag(self.S.T * np.log(self.KMM))).T
             ln_ratio = -ln_KMM_prod - self.dG0/RT
             factor = np.sqrt(np.exp(ln_ratio))
@@ -128,16 +127,18 @@ class EnzymeCostFunction(object):
         self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(self.K_inh))).T
 
         try:
-            self.ECF = eval('self._ECF%d' % ecf_version)
+            self.ECF = eval('self._ECF%d' % self.params['version'])
         except AttributeError:
-            raise ValueError('The enzyme cost function %d is unknown' % ecf_version)
+            raise ValueError('The enzyme cost function %d is unknown' %
+                             self.params['version'])
 
         try:
-            self.D = eval('self._D_%s' % denom_version)
+            self.D = eval('self._D_%s' % self.params['denominator'])
         except AttributeError:
-            raise ValueError('The denominator function %s is unknown' % denom_version)
+            raise ValueError('The denominator function %s is unknown' %
+                             self.params['denominator'])
 
-        self.regularization = regularization
+        self.regularization = self.params['regularization']
 
     def Serialize(self):
         mdict = {'S' : self.S,
@@ -149,8 +150,8 @@ class EnzymeCostFunction(object):
                  'A_act': self.A_act,
                  'A_ihn': self.A_inh,
                  'K_act': self.K_act,
-                 'K_inh': self.K_inh,
-                 'ecf_version': self.ecf_version}
+                 'K_inh': self.K_inh}
+        mdict.update(self.params)
         return mdict
 
     def _DrivingForce(self, lnC):
@@ -403,11 +404,11 @@ class EnzymeCostFunction(object):
             if np.isnan(e) or e <= 0:
                 raise Exception('ECF returns NaN although all reactions are feasible')
 
-            if self.regularization == None:
+            if self.regularization == None or self.regularization.lower() == 'none':
                 return e
-            elif self.regularization == 'volume':
-                return e + m
-            elif self.regularization == 'quadratic':
+            elif self.regularization.lower() == 'volume':
+                return e + METABOLITE_WEIGHT_CORRECTION_FACTOR * m
+            elif self.regularization.lower() == 'quadratic':
                 d = lnC - 0.5*(lnC.min() + lnC.max())
                 return e + QUAD_REGULARIZATION_COEFF * 0.5 * float(d.T * d)
             else:

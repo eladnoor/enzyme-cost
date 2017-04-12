@@ -12,19 +12,17 @@ from numpy import hstack, vstack, arange, diff, where, isfinite, isinf, cumsum
 from cost_function import EnzymeCostFunction
 from scipy.io import savemat
 import colors
-from util import RT, CELL_VOL_PER_DW, DEFAULTS, str2bool, PlotCorrelation
+from util import RT, CELL_VOL_PER_DW, ECF_DEFAULTS, str2bool, PlotCorrelation
 import logging
 from errors import ThermodynamicallyInfeasibleError
 import types
 
 class ECMmodel(object):
 
-    def __init__(self, model_sbtab, validate_sbtab,
-                 ecf_version=DEFAULTS['ECF_VERSION'],
-                 denom_version=DEFAULTS['DENOMINATOR'],
-                 regularization=DEFAULTS['REGULARIZATION'],
-                 dG0_source=DEFAULTS['DG0_SOURCE'],
-                 kcat_source=DEFAULTS['KCAT_SOURCE']):
+    def __init__(self, model_sbtab, validate_sbtab, ecf_params):
+
+        self.ecf_params = dict(ECF_DEFAULTS)
+        self.ecf_params.update(ecf_params)
         self._model_sbtab = model_sbtab
         self._validate_sbtab = validate_sbtab
         self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
@@ -57,14 +55,15 @@ class ECMmodel(object):
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw = \
             ECMmodel._ReadKineticParameters(self._model_sbtab)
 
-        if dG0_source == 'keq_table':
+        if self.ecf_params['dG0_source'] == 'keq_table':
             self._CalcGibbsEnergiesFromKeq(rid2keq)
-        elif dG0_source == 'component_contribution':
+        elif self.ecf_params['dG0_source'] == 'component_contribution':
             self._CalcGibbsEnerigesFromComponentContribution()
-        elif dG0_source == 'dG0r_table':
+        elif self.ecf_params['dG0_source'] == 'dG0r_table':
             self._CalcGibbsEnerigesFromdG0ReactionTable()
         else:
-            raise ValueError('unrecognized dG0 source: ' + dG0_source)
+            raise ValueError('unrecognized dG0 source: ' +
+                             self.ecf_params['dG0_source'])
 
         # read flux values and convert them to M/s
         flux_units = self._model_sbtab.GetTableAttribute('Flux', 'Unit')
@@ -82,9 +81,9 @@ class ECMmodel(object):
         # direction of flux (as is) and that would mean that our
         # thermodynamic rate law would be equivalent to calculating the
         # reverse kcat using the Haldane relationship
-        if kcat_source == 'gmean':
+        if self.ecf_params['kcat_source'] == 'gmean':
             kcat = matrix(map(rid2crc_gmean.get, self.kegg_model.rids)).T
-        elif kcat_source == 'fwd':
+        elif self.ecf_params['kcat_source'] == 'fwd':
             # get the relevant kcat (fwd/rev) depending on the direction of flux
             kcat = []
             for r, rid in enumerate(self.kegg_model.rids):
@@ -94,7 +93,8 @@ class ECMmodel(object):
                     kcat.append(rid2crc_rev[rid])
             kcat = matrix(kcat).T
         else:
-            raise ValueError('unrecognized kcat source: ' + kcat_source)
+            raise ValueError('unrecognized kcat source: ' +
+                             self.ecf_params['kcat_source'])
 
         dG0 = matrix(map(self.rid2dG0.get, self.kegg_model.rids)).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
@@ -114,12 +114,10 @@ class ECMmodel(object):
         mw_met = matrix(map(cid2mw.get, self.kegg_model.cids)).T
 
         self.ecf = EnzymeCostFunction(S, flux=flux, kcat=kcat,
-                                      kcat_source=kcat_source,
-                                      regularization=regularization,
                                       dG0=dG0, KMM=KMM,
                                       mw_enz=mw_enz, mw_met=mw_met,
-                                      lnC_bounds=lnC_bounds, ecf_version=ecf_version,
-                                      denom_version=denom_version)
+                                      lnC_bounds=lnC_bounds,
+                                      params=self.ecf_params)
 
     def WriteMatFile(self, file_name):
         mdict = self.ecf.Serialize()
@@ -187,11 +185,11 @@ class ECMmodel(object):
                     assert unit == 'dimensionless'
                     rid2keq[rid] = val
                 elif typ == 'enzyme molecular weight':
-                    assert unit == 'Da'
-                    rid2mw[rid] = val
+                    value_mapping = ECMmodel._MappingToCanonicalMolecularWeightUnits(unit)
+                    rid2mw[rid] = value_mapping(val)
                 elif typ == 'compound molecular weight':
-                    assert unit == 'Da'
-                    cid2mw[cid] = val
+                    value_mapping = ECMmodel._MappingToCanonicalMolecularWeightUnits(unit)
+                    cid2mw[cid] = value_mapping(val)
                 else:
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
             except AssertionError:
@@ -332,6 +330,26 @@ class ECMmodel(object):
         raise ValueError('Cannot convert these units to kJ/mol: ' + unit)
 
     @staticmethod
+    def _MappingToCanonicalMolecularWeightUnits(unit):
+        """
+            Assuming the canonical units for concentration are Molar
+
+            Returns:
+                A function that converts a single number or string to the
+                canonical units
+        """
+        if unit == 'Da':
+            return lambda x: ECMmodel._nanfloat(x)
+        if unit == 'kDa':
+            return lambda x: ECMmodel._nanfloat(x)*1e3
+        if unit == 'MDa':
+            return lambda x: ECMmodel._nanfloat(x)*1e6
+        if unit == 'mDa':
+            return lambda x: ECMmodel._nanfloat(x)*1e-3
+
+        raise ValueError('Cannot convert these units to M: ' + unit)
+
+    @staticmethod
     def _MappingToCanonicalConcentrationUnits(unit):
         """
             Assuming the canonical units for concentration are Molar
@@ -424,7 +442,7 @@ class ECMmodel(object):
         ax.pie(vols, labels=labels, colors=colors)
         ax.set_title('total weight [g/L]')
 
-    def PlotEnzymeCosts(self, lnC, ax, top_level=3, plot_measured=False):
+    def PlotEnzymeDemandBreakdown(self, lnC, ax, top_level=3, plot_measured=False):
         """
             A bar plot in log-scale showing the partitioning of cost between
             the levels of kinetic costs:
@@ -477,7 +495,7 @@ class ECMmodel(object):
         xticks = map(self.kegg2rxn.get, self.kegg_model.rids)
         ax.set_xticklabels(xticks, size='medium', rotation=90)
         ax.legend(all_labels, loc='best', framealpha=0.2)
-        ax.set_ylabel('enzyme cost [M]')
+        ax.set_ylabel('enzyme demand [M]')
         ax.set_ylim(ymin=base)
 
     def ValidateMetaboliteConcentrations(self, lnC, ax, scale='log'):

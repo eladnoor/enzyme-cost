@@ -32,15 +32,12 @@ _validate_sbtab_dict = SBtabDict.FromSBtab(validate_sbtab_fpath)
 
 logging.info('Creating an ECM model using the data')
 
-ecf_version = 3
-denom_version = 'CM'
-ecf_title = 'ECF%d(%s)' % (ecf_version, denom_version)
-model = ECMmodel(_model_sbtab_dict, _validate_sbtab_dict,
-                 ecf_version=ecf_version,
-                 denom_version=denom_version,
-                 regularization='volume',
-                 dG0_source='keq_table',
-                 kcat_source='gmean')
+ecf_params = {'version': 3,
+              'denominator': 'CM',
+              'regularization': 'volume'}
+ecf_title = 'ECF%d(%s)' % (ecf_params['version'], ecf_params['denominator'])
+model = ECMmodel(_model_sbtab_dict, _validate_sbtab_dict, ecf_params)
+
 
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
@@ -56,13 +53,14 @@ except ThermodynamicallyInfeasibleError as e:
 logging.info('Solving ECM problem')
 lnC_ECM = model.ECM(n_iter=15)
 
+#%%
 fig1 = plt.figure(figsize=(12, 4))
 
 ax_MDF = fig1.add_subplot(1, 2, 1)
-model.PlotEnzymeCosts(lnC_MDF, ax_MDF, plot_measured=True)
+model.PlotEnzymeDemandBreakdown(lnC_MDF, ax_MDF, plot_measured=True)
 ax_MDF.set_title(r'MDF')
 ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
-model.PlotEnzymeCosts(lnC_ECM, ax_ECM, plot_measured=True)
+model.PlotEnzymeDemandBreakdown(lnC_ECM, ax_ECM, plot_measured=True)
 ax_ECM.set_title(ecf_title)
 fig1.savefig(os.path.join(RES_DIR, '%s_bar.pdf' % exp_name))
 fig1.savefig(os.path.join(RES_DIR, '%s_bar.png' % exp_name), dpi=300)
