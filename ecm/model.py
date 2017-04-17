@@ -38,7 +38,7 @@ class ECMmodel(object):
         self._model_sbtab = model_sbtab
         self._validate_sbtab = validate_sbtab
         self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
-            'Compound:Identifiers:kegg.compound', 'NameForPlots')
+            'Identifiers:kegg.compound', 'NameForPlots')
         self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
             'ID', 'NameForPlots')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._model_sbtab)
@@ -50,7 +50,7 @@ class ECMmodel(object):
             ext_col_name = 'IsConstant'
 
         self.cid2external = self._model_sbtab.GetDictFromTable(
-            'Compound', 'Compound:Identifiers:kegg.compound', ext_col_name,
+            'Compound', 'Identifiers:kegg.compound', ext_col_name,
             value_mapping=str2bool)
 
         self._ReadConcentrationBounds()
@@ -133,7 +133,7 @@ class ECMmodel(object):
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
         met2kegg = sbtab_dict.GetDictFromTable('Compound', 'ID',
-            'Compound:Identifiers:kegg.compound')
+            'Identifiers:kegg.compound')
 
         reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'ID')
         reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'ReactionFormula')
@@ -151,7 +151,7 @@ class ECMmodel(object):
     def _ReadKineticParameters(sbtab_dict, table_name='RateConstant'):
         cols = ['QuantityType',
                 'Value',
-                'Compound:Identifiers:kegg.compound',
+                'Identifiers:kegg.compound',
                 'Reaction',
                 'Unit']
 
@@ -183,15 +183,15 @@ class ECMmodel(object):
                 elif typ == 'equilibrium constant':
                     assert unit == 'dimensionless'
                     rid2keq[rid] = val
-                elif typ == 'enzyme molecular weight':
+                elif typ == 'enzyme molecular mass':
                     assert unit == 'Da'
                     rid2mw[rid] = val
-                elif typ == 'compound molecular weight':
+                elif typ == 'compound molecular mass':
                     assert unit == 'Da'
                     cid2mw[cid] = val
                 else:
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
-            except AssertionError as e:
+            except AssertionError:
                 raise ValueError('Syntax error in SBtab table %s, row %d - %s' %
                                  (table_name, i, row))
         return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw
@@ -249,10 +249,10 @@ class ECMmodel(object):
         bound_units = self._model_sbtab.GetTableAttribute('ConcentrationConstraint', 'Unit')
         bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
         self.cid2min_bound = self._model_sbtab.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
+            'ConcentrationConstraint', 'Identifiers:kegg.compound', 'Concentration:Min',
             value_mapping=bound_mapping)
         self.cid2max_bound = self._model_sbtab.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
+            'ConcentrationConstraint', 'Identifiers:kegg.compound', 'Concentration:Max',
             value_mapping=bound_mapping)
 
         if 'C00001' in self.cid2min_bound:
@@ -383,7 +383,7 @@ class ECMmodel(object):
 
         # assume concentrations are in mM
         return self._validate_sbtab.GetDictFromTable(
-            'Concentration', 'Compound:Identifiers:kegg.compound',
+            'Concentration', 'Identifiers:kegg.compound',
             'Concentration', value_mapping=value_mapping)
 
     def _GetMeasuredEnzymeConcentrations(self):

@@ -32,7 +32,7 @@ MDH_R00342	_S__Malate + NADplus <=> NADH + Oxaloacetate	R00342	True	MDH	Common s
 PPC_R00345	Orthophosphate + Oxaloacetate <=> CO2 + Phosphoenolpyruvate	R00345	True	PPC	Common saturable (CM)	u_R30 * ( kC_R30 * sqrt( kEQ_R30  * kM_R30_Orthophosphate * kM_R30_Oxaloacetate / kM_R30_CO2 / kM_R30_Phosphoenolpyruvate ) * ( Orthophosphate / kM_R30_Orthophosphate ) * ( Oxaloacetate / kM_R30_Oxaloacetate ) - kC_R30 / sqrt( kEQ_R30  * kM_R30_Orthophosphate * kM_R30_Oxaloacetate / kM_R30_CO2 / kM_R30_Phosphoenolpyruvate ) * ( CO2 / kM_R30_CO2 ) * ( Phosphoenolpyruvate / kM_R30_Phosphoenolpyruvate ) ) / ( ( 1 + Orthophosphate / kM_R30_Orthophosphate ) * ( 1 + Oxaloacetate / kM_R30_Oxaloacetate ) + ( 1 + CO2 / kM_R30_CO2 ) * ( 1 + Phosphoenolpyruvate / kM_R30_Phosphoenolpyruvate ) - 1 )	ppc
 %							
 !!SBtab TableName='Compound' TableType='Compound' Document='E. coli central carbon metabolism - balanced paraeters' SBtabVersion='1.0'							
-!ID	!Name	!Compound:Identifiers:kegg.compound	!IsConstant	!NameForPlots			
+!ID	!Name	!Identifiers:kegg.compound	!IsConstant	!NameForPlots			
 _S__Malate	(S)-Malate	C00149	False	mal			
 Acetyl_CoA	Acetyl-CoA	C00024	False	acecoa			
 Fumarate	Fumarate	C00122	False	fum			
@@ -75,77 +75,77 @@ Succinate	Succinate	C00042	False	suc
 Sedoheptulose_7_phosphate	Sedoheptulose 7-phosphate	C05382	False	s7p			
 %							
 !!SBtab TableName='RateConstant' TableType='Quantity' Document='E. coli central carbon metabolism - balanced paraeters' SBtabVersion='1.0'							
-!QuantityType	!Reaction	!Compound	!Value	!Unit	!Reaction:Identifiers:kegg.reaction	!Compound:Identifiers:kegg.compound	!ID
-enzyme molecular weight	PTS_RPTSsy		255848	Da	RPTSsy		
-enzyme molecular weight	PGI_R02740		61530	Da	R02740		
-enzyme molecular weight	PFK_R04779		139360	Da	R04779		
-enzyme molecular weight	ALD_R01070		39147	Da	R01070		
-enzyme molecular weight	TIM_R01015		53940	Da	R01015		
-enzyme molecular weight	GAP_R01061		35530	Da	R01061		
-enzyme molecular weight	PGK_R01512		41120	Da	R01512		
-enzyme molecular weight	PGM_R01518		28556	Da	R01518		
-enzyme molecular weight	PGH_R00658		45650	Da	R00658		
-enzyme molecular weight	PYK_R00200		50000	Da	R00200		
-enzyme molecular weight	PDH_R00209		282880	Da	R00209		
-enzyme molecular weight	ZWF_R00835		55700	Da	R00835		
-enzyme molecular weight	GLH_R02035		36310	Da	R02035		
-enzyme molecular weight	PGD_R01528		102960	Da	R01528		
-enzyme molecular weight	RPI_R01056		19466	Da	R01056		
-enzyme molecular weight	RPE_R01529		24554	Da	R01529		
-enzyme molecular weight	TXT_R01641		73043	Da	R01641		
-enzyme molecular weight	TAL_R08575		35219	Da	R08575		
-enzyme molecular weight	TXT_R01067		73043	Da	R01067		
-enzyme molecular weight	FBP_R00762		36834	Da	R00762		
-enzyme molecular weight	CSN_R00351		96020	Da	R00351		
-enzyme molecular weight	ACN_R01325		95588	Da	R01325		
-enzyme molecular weight	ACN_R01900		95588	Da	R01900		
-enzyme molecular weight	ICD_R00709		45760	Da	R00709		
-enzyme molecular weight	KGD_R08549		1209180	Da	R08549		
-enzyme molecular weight	SCS_R00405		71170	Da	R00405		
-enzyme molecular weight	SDH_R02164		792299	Da	R02164		
-enzyme molecular weight	FUM_R01082		60000	Da	R01082		
-enzyme molecular weight	MDH_R00342		32337	Da	R00342		
-enzyme molecular weight	PPC_R00345		198120	Da	R00345		
-compound molecular weight		_S__Malate	134	Da		C00149	
-compound molecular weight		Acetyl_CoA	810	Da		C00024	
-compound molecular weight		Fumarate	116	Da		C00122	
-compound molecular weight		cis_Aconitate	174	Da		C00417	
-compound molecular weight		_6_Phospho_D_gluconate	276	Da		C00345	
-compound molecular weight		Orthophosphate	98	Da		C00009	
-compound molecular weight		Pyruvate	88	Da		C00022	
-compound molecular weight		NADPplus	744	Da		C00006	
-compound molecular weight		NADPH	745	Da		C00005	
-compound molecular weight		NADH	665	Da		C00004	
-compound molecular weight		NADplus	664	Da		C00003	
-compound molecular weight		ATP	507	Da		C00002	
-compound molecular weight		H2O	18	Da		C00001	
-compound molecular weight		_2_Oxoglutarate	146	Da		C00026	
-compound molecular weight		Oxaloacetate	132	Da		C00036	
-compound molecular weight		Ubiquinone	318	Da		C00399	
-compound molecular weight		D_Erythrose_4_phosphate	200	Da		C00279	
-compound molecular weight		Ubiquinol	320	Da		C00390	
-compound molecular weight		ADP	427	Da		C00008	
-compound molecular weight		Isocitrate	192	Da		C00311	
-compound molecular weight		D_Ribulose_5_phosphate	230	Da		C00199	
-compound molecular weight		D_Xylulose_5_phosphate	230	Da		C00231	
-compound molecular weight		D_Glucose_6_phosphate	260	Da		C00092	
-compound molecular weight		_3_Phospho_D_glyceroyl_phosphate	266	Da		C00236	
-compound molecular weight		CoA	768	Da		C00010	
-compound molecular weight		CO2	44	Da		C00011	
-compound molecular weight		D_Ribose_5_phosphate	230	Da		C00117	
-compound molecular weight		Glycerone_phosphate	170	Da		C00111	
-compound molecular weight		D_Glucose	180	Da		C00031	
-compound molecular weight		D_Fructose_1_6_bisphosphate	340	Da		C00354	
-compound molecular weight		D_Glyceraldehyde_3_phosphate	170	Da		C00118	
-compound molecular weight		Phosphoenolpyruvate	168	Da		C00074	
-compound molecular weight		Citrate	192	Da		C00158	
-compound molecular weight		Succinyl_CoA	868	Da		C00091	
-compound molecular weight		_3_Phospho_D_glycerate	186	Da		C00197	
-compound molecular weight		D_Glucono_1_5_lactone_6_phosphate	258	Da		C01236	
-compound molecular weight		D_Fructose_6_phosphate	260	Da		C00085	
-compound molecular weight		_2_Phospho_D_glycerate	186	Da		C00631	
-compound molecular weight		Succinate	118	Da		C00042	
-compound molecular weight		Sedoheptulose_7_phosphate	290	Da		C05382	
+!QuantityType	!Reaction	!Compound	!Value	!Unit	!Reaction:Identifiers:kegg.reaction	!Identifiers:kegg.compound	!ID
+enzyme molecular mass	PTS_RPTSsy		255848	Da	RPTSsy		
+enzyme molecular mass	PGI_R02740		61530	Da	R02740		
+enzyme molecular mass	PFK_R04779		139360	Da	R04779		
+enzyme molecular mass	ALD_R01070		39147	Da	R01070		
+enzyme molecular mass	TIM_R01015		53940	Da	R01015		
+enzyme molecular mass	GAP_R01061		35530	Da	R01061		
+enzyme molecular mass	PGK_R01512		41120	Da	R01512		
+enzyme molecular mass	PGM_R01518		28556	Da	R01518		
+enzyme molecular mass	PGH_R00658		45650	Da	R00658		
+enzyme molecular mass	PYK_R00200		50000	Da	R00200		
+enzyme molecular mass	PDH_R00209		282880	Da	R00209		
+enzyme molecular mass	ZWF_R00835		55700	Da	R00835		
+enzyme molecular mass	GLH_R02035		36310	Da	R02035		
+enzyme molecular mass	PGD_R01528		102960	Da	R01528		
+enzyme molecular mass	RPI_R01056		19466	Da	R01056		
+enzyme molecular mass	RPE_R01529		24554	Da	R01529		
+enzyme molecular mass	TXT_R01641		73043	Da	R01641		
+enzyme molecular mass	TAL_R08575		35219	Da	R08575		
+enzyme molecular mass	TXT_R01067		73043	Da	R01067		
+enzyme molecular mass	FBP_R00762		36834	Da	R00762		
+enzyme molecular mass	CSN_R00351		96020	Da	R00351		
+enzyme molecular mass	ACN_R01325		95588	Da	R01325		
+enzyme molecular mass	ACN_R01900		95588	Da	R01900		
+enzyme molecular mass	ICD_R00709		45760	Da	R00709		
+enzyme molecular mass	KGD_R08549		1209180	Da	R08549		
+enzyme molecular mass	SCS_R00405		71170	Da	R00405		
+enzyme molecular mass	SDH_R02164		792299	Da	R02164		
+enzyme molecular mass	FUM_R01082		60000	Da	R01082		
+enzyme molecular mass	MDH_R00342		32337	Da	R00342		
+enzyme molecular mass	PPC_R00345		198120	Da	R00345		
+compound molecular mass		_S__Malate	134	Da		C00149	
+compound molecular mass		Acetyl_CoA	810	Da		C00024	
+compound molecular mass		Fumarate	116	Da		C00122	
+compound molecular mass		cis_Aconitate	174	Da		C00417	
+compound molecular mass		_6_Phospho_D_gluconate	276	Da		C00345	
+compound molecular mass		Orthophosphate	98	Da		C00009	
+compound molecular mass		Pyruvate	88	Da		C00022	
+compound molecular mass		NADPplus	744	Da		C00006	
+compound molecular mass		NADPH	745	Da		C00005	
+compound molecular mass		NADH	665	Da		C00004	
+compound molecular mass		NADplus	664	Da		C00003	
+compound molecular mass		ATP	507	Da		C00002	
+compound molecular mass		H2O	18	Da		C00001	
+compound molecular mass		_2_Oxoglutarate	146	Da		C00026	
+compound molecular mass		Oxaloacetate	132	Da		C00036	
+compound molecular mass		Ubiquinone	318	Da		C00399	
+compound molecular mass		D_Erythrose_4_phosphate	200	Da		C00279	
+compound molecular mass		Ubiquinol	320	Da		C00390	
+compound molecular mass		ADP	427	Da		C00008	
+compound molecular mass		Isocitrate	192	Da		C00311	
+compound molecular mass		D_Ribulose_5_phosphate	230	Da		C00199	
+compound molecular mass		D_Xylulose_5_phosphate	230	Da		C00231	
+compound molecular mass		D_Glucose_6_phosphate	260	Da		C00092	
+compound molecular mass		_3_Phospho_D_glyceroyl_phosphate	266	Da		C00236	
+compound molecular mass		CoA	768	Da		C00010	
+compound molecular mass		CO2	44	Da		C00011	
+compound molecular mass		D_Ribose_5_phosphate	230	Da		C00117	
+compound molecular mass		Glycerone_phosphate	170	Da		C00111	
+compound molecular mass		D_Glucose	180	Da		C00031	
+compound molecular mass		D_Fructose_1_6_bisphosphate	340	Da		C00354	
+compound molecular mass		D_Glyceraldehyde_3_phosphate	170	Da		C00118	
+compound molecular mass		Phosphoenolpyruvate	168	Da		C00074	
+compound molecular mass		Citrate	192	Da		C00158	
+compound molecular mass		Succinyl_CoA	868	Da		C00091	
+compound molecular mass		_3_Phospho_D_glycerate	186	Da		C00197	
+compound molecular mass		D_Glucono_1_5_lactone_6_phosphate	258	Da		C01236	
+compound molecular mass		D_Fructose_6_phosphate	260	Da		C00085	
+compound molecular mass		_2_Phospho_D_glycerate	186	Da		C00631	
+compound molecular mass		Succinate	118	Da		C00042	
+compound molecular mass		Sedoheptulose_7_phosphate	290	Da		C05382	
 equilibrium constant	PTS_RPTSsy		52122111	dimensionless	RPTSsy		kEQ_R1
 equilibrium constant	PGI_R02740		0.3654504	dimensionless	R02740		kEQ_R2
 equilibrium constant	PFK_R04779		1696.7518	dimensionless	R04779		kEQ_R3
@@ -175,7 +175,7 @@ equilibrium constant	SCS_R00405		0.58456115	dimensionless	R00405		kEQ_R26
 equilibrium constant	SDH_R02164		5756.8018	dimensionless	R02164		kEQ_R27
 equilibrium constant	FUM_R01082		3.9855529	dimensionless	R01082		kEQ_R28
 equilibrium constant	MDH_R00342		2.0550821E-05	dimensionless	R00342		kEQ_R29
-equilibrium constant	PPC_R00345		0.000001	dimensionless	R00345		kEQ_R30
+equilibrium constant	PPC_R00345		1E-06	dimensionless	R00345		kEQ_R30
 catalytic rate constant geometric mean	PTS_RPTSsy		0.12409807	1/s	RPTSsy		kC_R1
 catalytic rate constant geometric mean	PGI_R02740		17.845376	1/s	R02740		kC_R2
 catalytic rate constant geometric mean	PFK_R04779		12.466487	1/s	R04779		kC_R3
@@ -441,7 +441,7 @@ standard Gibbs energy of reaction	MDH_R00342	R00342	26.918927	26.896024	_S__Mala
 standard Gibbs energy of reaction	PPC_R00345	R00345	34.458646	36.7	Orthophosphate + Oxaloacetate <=> CO2 + Phosphoenolpyruvate		
 %							
 !!SBtab DocumentName='E. coli central carbon metabolism - balanced paraeters' TableName='ConcentrationConstraint' TableType='Quantity' Unit='mM' SBtabVersion='1.0'							
-!QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration:Min	!Concentration:Max			
+!QuantityType	!Compound	!Identifiers:kegg.compound	!Concentration:Min	!Concentration:Max			
 concentration	_S__Malate	C00149	0.001	10			
 concentration	Acetyl_CoA	C00024	0.001	10			
 concentration	Fumarate	C00122	0.001	10			
