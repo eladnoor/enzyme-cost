@@ -1,6 +1,6 @@
 import numpy as np
 import pulp
-from component_contribution.thermodynamic_constants import default_RT as RT
+from util import RT
 
 class Pathway(object):
 

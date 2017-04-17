@@ -31,13 +31,13 @@ _model_sbtab_dict = SBtabDict.FromSBtab(model_sbtab_fpath)
 _validate_sbtab_dict = SBtabDict.FromSBtab(validate_sbtab_fpath)
 
 logging.info('Creating an ECM model using the data')
-model = ECMmodel(_model_sbtab_dict, _validate_sbtab_dict,
-                 ecf_version=3,
-                 denom_version='CM',
-                 regularization='volume',
-                 dG0_source='keq_table',
-                 kcat_source='gmean')
-ecf_title = 'ECF3(CM)'
+
+ecf_params = {'version': 3,
+              'denominator': 'CM',
+              'regularization': 'volume'}
+ecf_title = 'ECF%d(%s)' % (ecf_params['version'], ecf_params['denominator'])
+model = ECMmodel(_model_sbtab_dict, _validate_sbtab_dict, ecf_params)
+
 
 logging.info('Exporting data to .mat file: ' + mat_fpath)
 model.WriteMatFile(mat_fpath)
@@ -53,13 +53,14 @@ except ThermodynamicallyInfeasibleError as e:
 logging.info('Solving ECM problem')
 lnC_ECM = model.ECM(n_iter=15)
 
+#%%
 fig1 = plt.figure(figsize=(12, 4))
 
 ax_MDF = fig1.add_subplot(1, 2, 1)
-model.PlotEnzymeCosts(lnC_MDF, ax_MDF, plot_measured=True)
+model.PlotEnzymeDemandBreakdown(lnC_MDF, ax_MDF, plot_measured=True)
 ax_MDF.set_title(r'MDF')
 ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
-model.PlotEnzymeCosts(lnC_ECM, ax_ECM, plot_measured=True)
+model.PlotEnzymeDemandBreakdown(lnC_ECM, ax_ECM, plot_measured=True)
 ax_ECM.set_title(ecf_title)
 fig1.savefig(os.path.join(RES_DIR, '%s_bar.pdf' % exp_name))
 fig1.savefig(os.path.join(RES_DIR, '%s_bar.png' % exp_name), dpi=300)
@@ -82,3 +83,14 @@ model.PlotVolumes(lnC_ECM, ax)
 ax.set_yscale('log')
 fig3.savefig(os.path.join(RES_DIR, '%s_vol.pdf' % exp_name))
 fig3.savefig(os.path.join(RES_DIR, '%s_vol.png' % exp_name), dpi=300)
+
+#%%
+fig4 = plt.figure(figsize=(5, 5))
+ax = fig4.add_subplot(1, 1, 1)
+#model.PlotVolumesPie(lnC_ECM, ax)
+vols, labels, colors = model._GetVolumeDataForPlotting(lnC_ECM)
+ax.pie(vols, labels=labels, colors=colors)
+ax.set_title('total weight = %.2g [g/L]' % sum(vols))
+
+fig4.savefig(os.path.join(RES_DIR, '%s_pie.pdf' % exp_name))
+fig4.savefig(os.path.join(RES_DIR, '%s_pie.png' % exp_name), dpi=300)

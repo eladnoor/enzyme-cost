@@ -7,11 +7,10 @@ Created on Tue Feb 10 12:15:06 2015
 Description:
     Generate a toy reaction network model with N intermediate metabolites
     and N+1 reactions.
-    
+
 """
 
 from ecm.cost_function import EnzymeCostFunction
-import ecm.ecf  
 import numpy as np
 
 N = 2
@@ -27,16 +26,21 @@ K_M      = np.matrix(np.ones(S.shape))
 K_M[S < 0] = 3e-2
 K_M[S > 0] = 1e-2
 
-
-ecf1 = ecm.ecf.EnzymeCostFunction(S, v, kcat, dG0, K_M, ecf_version='ECF4')
-print ecf1.MDF().T
-print ecf1.ECM().T
-
 lnC_bounds = np.matrix(np.ones((S.shape[0], 2))) * np.log(1e-4)
 lnC_bounds[1:-1, 0] = np.log(1e-6)
 lnC_bounds[1:-1, 1] = np.log(1e-2)
 
-ecf2 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds, ecf_version='ECF4')
-print ecf2.MDF().T
-print ecf2.ECM().T
+ecf1 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds,
+                          ecf_version='ECF1')
+mdf1_sol, params = ecf1.MDF()
+print mdf1_sol
+lnC0 = params['ln concentrations']
+print ecf1.ECM(lnC0).T
+
+ecf2 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds,
+                          ecf_version='ECF2')
+mdf2_sol, params = ecf2.MDF()
+print mdf2_sol
+lnC0 = params['ln concentrations']
+print ecf2.ECM(lnC0).T
 

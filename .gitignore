@@ -4,3 +4,4 @@
 *.pyc
 /res/*
 /data/.~lock.ecm_karl.tsv#
+/data/backup/*
