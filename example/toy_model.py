@@ -16,7 +16,7 @@ import numpy as np
 N = 2
 
 S = np.matrix(np.zeros((N + 2, N + 1)))
-for i in xrange(N + 1):
+for i in range(N + 1):
     S[i, i] = -1.0
     S[i+1, i] = 1.0
 v        = np.matrix(np.ones((N + 1, 1)))
@@ -33,14 +33,14 @@ lnC_bounds[1:-1, 1] = np.log(1e-2)
 ecf1 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds,
                           ecf_version='ECF1')
 mdf1_sol, params = ecf1.MDF()
-print mdf1_sol
+print(mdf1_sol)
 lnC0 = params['ln concentrations']
-print ecf1.ECM(lnC0).T
+print(ecf1.ECM(lnC0).T)
 
 ecf2 = EnzymeCostFunction(S, v, kcat, dG0, K_M, lnC_bounds,
                           ecf_version='ECF2')
 mdf2_sol, params = ecf2.MDF()
-print mdf2_sol
+print(mdf2_sol)
 lnC0 = params['ln concentrations']
-print ecf2.ECM(lnC0).T
+print(ecf2.ECM(lnC0).T)
 

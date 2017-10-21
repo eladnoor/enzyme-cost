@@ -4,7 +4,7 @@ Created on Thu Feb 26 15:01:27 2015
 
 @author: noore
 """
-import os, sys
+import os
 from ecm.cost_function import EnzymeCostFunction
 from ecm.simulator import EnzymeCostSimulator
 import numpy as np
@@ -83,7 +83,7 @@ E1 = np.matrix([0.5, 0.25, 0.25]).T # [g]
 E = np.hstack([E0, E1])
 
 figs = []
-for i in xrange(E.shape[1]):
+for i in range(E.shape[1]):
     v = ecf.GetFluxes(lnC, E[:,i:i+1])
     fig = plt.figure(figsize=(12,6))
     ax = fig.add_subplot(1, 2, 1, xscale='log', yscale='log')

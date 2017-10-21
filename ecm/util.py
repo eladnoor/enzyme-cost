@@ -85,7 +85,6 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log', grid=True):
             if scale == 'linear' or (x_i > 0 and y_i > 0):
                 ax.text(x_i, y_i, l, alpha=0.4)
 
-
 def CompoundID2MolecularWeight(compound_id):
     import openbabel
     s_mol = urllib.urlopen('http://rest.kegg.jp/get/cpd:%s/mol' % compound_id).read()

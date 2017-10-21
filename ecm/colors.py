@@ -16,7 +16,7 @@ def RgbToHex(rgb):
 	r *= 255
 	g *= 255
 	b *= 255
-	return '#%02x%02x%02x' % (r,g,b)
+	return '#%02x%02x%02x' % (int(r),int(g),int(b))
 	
 
 def ColorMap(items, saturation=0.7, value=0.95, hues=None):
@@ -30,10 +30,10 @@ def ColorMap(items, saturation=0.7, value=0.95, hues=None):
 def LayeredColorMap(items, n_minor, saturation=(0.4, 0.7), value=(0.95, 0.5), 
 				    hues=None):
 	n = len(saturation)
-	colormaps = [ColorMap(items, saturation[i], value[i], hues) for i in xrange(n)]
+	colormaps = [ColorMap(items, saturation[i], value[i], hues) for i in range(n)]
 	colormap = {}
 	for item in items:
-		colormap[item] = [colormaps[i % n][item] for i in xrange(n_minor)]
+		colormap[item] = [colormaps[i % n][item] for i in range(n_minor)]
 	return colormap
 
 def test2():
@@ -49,7 +49,7 @@ def test2():
 	width = 0.35          # the width of the bars
 	
 	for i, item in enumerate(items):
-		for j in xrange(n):
+		for j in range(n):
 			plt.bar(ind, data[n*i+j, :], width, color=colormap[item][j],
 				    label=item + '%d' % j, bottom=bottom[0, :], edgecolor='none')
 			bottom += data[n*i+j, :]
@@ -75,7 +75,7 @@ def test():
 	width = 0.35          # the width of the bars
 	
 	for i, item in enumerate(items):
-		for j in xrange(n):
+		for j in range(n):
 			if j % 2 == 0:
 				facecolor = colormap[item]
 			else:

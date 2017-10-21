@@ -1,4 +1,3 @@
-import cvxpy
 import numpy as np
 import matplotlib.pyplot as plt
 from optimized_bottleneck_driving_force import Pathway
@@ -9,7 +8,7 @@ def compare():
     N = G0.shape[0]
     fluxes = [1] * N
     S = np.zeros((N+1, N))
-    for i in xrange(N):
+    for i in range(N):
         S[i, i] = -1
         S[i+1, i] = 1
     x_min = np.ones((N+1, 1)) * -6 * np.log(10)
@@ -25,7 +24,7 @@ def compare():
     G_opt = list(params['Gibbs energies'].flat)
 
     obd_cost = -np.max(G_opt)
-    print obd, obd_cost
+    print(obd, obd_cost)
     return obd, obd_cost
     
     plt.subplot(121)
@@ -44,7 +43,7 @@ def compare():
     
 def multi_compare():
     data = []
-    for i in xrange(20):
+    for i in range(20):
         obd, obd_cost = compare()
         if obd is not None:
             data.append((obd, obd_cost))
@@ -60,13 +59,13 @@ def try_ECF():
     N = G0.shape[0]
     fluxes = [1] * N
     S = np.zeros((N+1, N))
-    for i in xrange(N):
+    for i in range(N):
         S[i, i] = -1
         S[i+1, i] = 1
     x_min = np.ones((N+1, 1)) * -6 * np.log(10)
     x_max = np.ones((N+1, 1)) * -2 * np.log(10)
     path = Pathway(S, fluxes, G0, x_min, x_max)
-    print path.FindECF()
+    print(path.FindECF())
     
 if __name__ == "__main__":
     #multi_compare()

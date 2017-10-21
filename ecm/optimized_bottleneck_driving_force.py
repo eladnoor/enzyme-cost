@@ -1,6 +1,6 @@
 import numpy as np
 import pulp
-from util import RT
+from ecm.util import RT
 
 class Pathway(object):
 
@@ -35,7 +35,7 @@ class Pathway(object):
         # we need to take special care for reactions whose flux is 0.
         # since we don't want them to constrain the MDF to be 0.
 
-        flux_sign = map(np.sign, self.fluxes.flat)
+        flux_sign = list(map(np.sign, self.fluxes.flat))
         active_fluxes = np.abs(np.matrix(flux_sign)).T
         I_dir = np.matrix(np.diag(flux_sign))
 
@@ -70,15 +70,15 @@ class Pathway(object):
         lp = pulp.LpProblem("MDF", pulp.LpMaximize)
 
         # ln-concentration variables
-        _l = pulp.LpVariable.dicts("lnC", ["%d" % i for i in xrange(self.Nc)])
+        _l = pulp.LpVariable.dicts("lnC", ["%d" % i for i in range(self.Nc)])
         B = pulp.LpVariable("B")
-        lnC = [_l["%d" % i] for i in xrange(self.Nc)] + [B]
+        lnC = [_l["%d" % i] for i in range(self.Nc)] + [B]
 
-        for j in xrange(A.shape[0]):
-            row = [A[j, i] * lnC[i] for i in xrange(A.shape[1])]
+        for j in range(A.shape[0]):
+            row = [A[j, i] * lnC[i] for i in range(A.shape[1])]
             lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
 
-        objective = pulp.lpSum([c[i] * lnC[i] for i in xrange(A.shape[1])])
+        objective = pulp.lpSum([c[i] * lnC[i] for i in range(A.shape[1])])
         lp.setObjective(objective)
 
         #lp.writeLP("res/MDF_primal.lp")
@@ -105,26 +105,26 @@ class Pathway(object):
         lp = pulp.LpProblem("MDF", pulp.LpMinimize)
 
         w = pulp.LpVariable.dicts("w",
-                                  ["%d" % i for i in xrange(self.Nr)],
+                                  ["%d" % i for i in range(self.Nr)],
                                   lowBound=0)
 
         z = pulp.LpVariable.dicts("z",
-                                  ["%d" % i for i in xrange(self.Nc)],
+                                  ["%d" % i for i in range(self.Nc)],
                                   lowBound=0)
 
         u = pulp.LpVariable.dicts("u",
-                                  ["%d" % i for i in xrange(self.Nc)],
+                                  ["%d" % i for i in range(self.Nc)],
                                   lowBound=0)
 
-        y = [w["%d" % i] for i in xrange(self.Nr)] + \
-            [z["%d" % i] for i in xrange(self.Nc)] + \
-            [u["%d" % i] for i in xrange(self.Nc)]
+        y = [w["%d" % i] for i in range(self.Nr)] + \
+            [z["%d" % i] for i in range(self.Nc)] + \
+            [u["%d" % i] for i in range(self.Nc)]
 
-        for i in xrange(A.shape[1]):
-            row = [A[j, i] * y[j] for j in xrange(A.shape[0])]
+        for i in range(A.shape[1]):
+            row = [A[j, i] * y[j] for j in range(A.shape[0])]
             lp += (pulp.lpSum(row) == c[i, 0]), "dual_%02d" % i
 
-        objective = pulp.lpSum([b[i] * y[i] for i in xrange(A.shape[0])])
+        objective = pulp.lpSum([b[i] * y[i] for i in range(A.shape[0])])
         lp.setObjective(objective)
 
         #lp.writeLP("res/MDF_dual.lp")
@@ -147,15 +147,15 @@ class Pathway(object):
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
 
         mdf = pulp.value(lnC[-1])
-        lnC = np.matrix(map(pulp.value, lnC[0:self.Nc])).T
+        lnC = np.matrix(list(map(pulp.value, lnC[0:self.Nc]))).T
 
         lp_dual, w, z, u = self._MakeMDFProblemDual()
         lp_dual.solve()
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
-        reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in xrange(self.Nr)]).T
-        compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in xrange(self.Nc)]).T - \
-                          np.matrix([pulp.value(u["%d" % j]) for j in xrange(self.Nc)]).T
+        reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in range(self.Nr)]).T
+        compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in range(self.Nc)]).T - \
+                          np.matrix([pulp.value(u["%d" % j]) for j in range(self.Nc)]).T
 
         params = {'MDF': mdf,
                   'ln concentrations' : lnC,

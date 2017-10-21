@@ -7,9 +7,8 @@ Created on Wed Feb 18 15:40:11 2015
 
 import numpy as np
 from scipy.optimize import minimize
-from optimized_bottleneck_driving_force import Pathway
-from util import RT, ECF_DEFAULTS
-from util import CastToColumnVector
+from ecm.optimized_bottleneck_driving_force import Pathway
+from ecm.util import RT, ECF_DEFAULTS, CastToColumnVector
 
 QUAD_REGULARIZATION_COEFF = 0.2
 METABOLITE_WEIGHT_CORRECTION_FACTOR = 1
@@ -236,7 +235,7 @@ class EnzymeCostFunction(object):
         """
         assert lnC.shape[0] == self.Nc
         D = np.matrix(np.zeros((self.Nr, lnC.shape[1])))
-        for k in xrange(lnC.shape[1]):
+        for k in range(lnC.shape[1]):
             X_k = np.log(np.exp(np.tile(lnC[:, k], (1, self.Nr))) / self.KMM + 1.0)
             ln_1_plus_S = np.matrix(np.diag(self.S_subs.T * X_k)).T
             ln_1_plus_P = np.matrix(np.diag(self.S_prod.T * X_k)).T
@@ -416,11 +415,11 @@ class EnzymeCostFunction(object):
 
         assert lnC0.shape == (self.Nc, 1)
 
-        bounds = zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat)
+        bounds = list(zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat))
 
         min_res = np.inf
         lnC_min = None
-        for i in xrange(n_iter):
+        for i in range(n_iter):
             lnC0_rand = np.multiply(lnC0, 1.0 + 0.1*np.random.rand(lnC0.shape[0], 1))
             r = minimize(optfun, x0=lnC0_rand, bounds=bounds, method='SLSQP')
 
@@ -430,7 +429,7 @@ class EnzymeCostFunction(object):
             res = optfun(r.x)[0, 0]
             if res < min_res:
                 min_res = res
-                print '%f' %  res,
+                print('%f' %  res)
                 lnC_min = np.matrix(r.x).T
 
         return lnC_min

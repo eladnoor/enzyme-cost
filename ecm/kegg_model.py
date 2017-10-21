@@ -67,10 +67,10 @@ def ParseReaction(formula, arrow='<=>'):
     right = tokens[1].strip()
 
     sparse_reaction = {}
-    for cid, count in ParseReactionFormulaSide(left).iteritems():
+    for cid, count in ParseReactionFormulaSide(left).items():
         sparse_reaction[cid] = sparse_reaction.get(cid, 0) - count
 
-    for cid, count in ParseReactionFormulaSide(right).iteritems():
+    for cid, count in ParseReactionFormulaSide(right).items():
         sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count
 
     return sparse_reaction
@@ -78,10 +78,10 @@ def ParseReaction(formula, arrow='<=>'):
 class KeggReaction(object):
 
     def __init__(self, sparse, arrow='<=>', rid=None):
-        for cid, coeff in sparse.iteritems():
+        for cid, coeff in sparse.items():
             if not (isinstance(coeff, float) or isinstance(coeff, int)):
                 raise ValueError('All values in KeggReaction must be integers or floats')
-        self.sparse = dict(filter(lambda (k,v):v, sparse.items()))
+        self.sparse = {k: v for (k,v) in sparse.items() if v != 0}
         self.arrow = arrow
         self.rid = rid
 
@@ -90,12 +90,12 @@ class KeggReaction(object):
 
     def dense(self, cids):
         s = np.matrix(np.zeros((len(cids), 1)))
-        for cid, coeff in self.iteritems():
+        for cid, coeff in self.items():
             s[cids.index(cid), 0] = coeff
         return s
 
-    def iteritems(self):
-        return self.sparse.iteritems()
+    def items(self):
+        return self.sparse.items()
 
 class KeggModel(object):
 
