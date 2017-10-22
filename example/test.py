@@ -20,8 +20,8 @@ RESULT_DIR = os.path.join(os.path.split(SCRIPT_DIR)[0], 'res')
 
 #exp_name = 'ecoli_ccm_aerobic_ProteinComposition_haverkorn'
 exp_name = 'ecoli_ccm_aerobic_channeling'
-modeldata_fname = os.path.join(DATA_DIR, '%s_ModelData.csv' % exp_name)
-validationdata_fname = os.path.join(DATA_DIR, '%s_ValidationData.csv' % exp_name)
+modeldata_fname = os.path.join(DATA_DIR, '%s_ModelData.tsv' % exp_name)
+validationdata_fname = os.path.join(DATA_DIR, '%s_ValidationData.tsv' % exp_name)
 
 logging.info('Reading SBtab files')
 modeldata_sbtabs = SBtabDict.FromSBtab(modeldata_fname)

@@ -1,5 +1,5 @@
 !!SBtab DocumentName='Model' TableName='Concentration' TableType='Quantity' Unit='mM' SBtabVersion='0.8'			
-!QuantityType	!Compound	!Identifiers:kegg.compound	!Concentration
+!QuantityType	!Compound	!Compound:Identifiers:kegg.compound	!Concentration
 concentration	_S__Malate	C00149	1.685342446
 concentration	Acetyl_CoA	C00024	0.606
 concentration	Fumarate	C00122	0.548242249
