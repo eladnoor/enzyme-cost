@@ -43,7 +43,7 @@ def PlotCorrelation(ax, x, y, labels, mask=None, scale='log', grid=True):
     y = CastToColumnVector(y)
 
     if mask is None:
-        mask = (x > 0) & (y > 0)
+        mask = (np.nan_to_num(x) > 0) & (np.nan_to_num(y) > 0)
 
     ax.grid(grid)
     if scale == 'log':

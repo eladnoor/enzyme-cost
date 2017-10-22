@@ -11,13 +11,12 @@ Description:
 """
 
 import numpy as np
-from ecm.ecf import EnzymeCostFunction
-from component_contribution.thermodynamic_constants import default_RT as RT
+from ecm.cost_function import EnzymeCostFunction
+import matplotlib.pyplot as plt
 
-import os
-if not os.path.exists('../res'):
-    os.mkdir('../res')
-
+R = 8.31e-3
+DEFAULT_TEMP = 298.15  # K
+RT = R * DEFAULT_TEMP
 
 Nr = 3
 Nc = 4
@@ -40,11 +39,36 @@ K_M        = np.matrix(np.ones(S.shape))
 K_M[S < 0] = 9e-2
 K_M[S > 0] = 1e-2
 
+lnC_bounds = np.log(np.matrix([[1e-9]*Nc, [1e-1]*Nc]).T)
+
 A_act      = np.matrix(np.zeros(S.shape))
 A_inh      = np.matrix(np.zeros(S.shape))
 K_act      = np.matrix(np.ones(S.shape))
 K_inh      = np.matrix(np.ones(S.shape))
 
+toy_ecf = EnzymeCostFunction(S, v, kcat, dG0_r, K_M, lnC_bounds, None, None,
+                             A_act, A_inh, K_act, K_inh)
 
-toy_ecf = EnzymeCostFunction(S, v, kcat, dG0_r, K_M, A_act, A_inh, K_act, K_inh)
-toy_ecf.generate_pdf_report('../res/aldolase.pdf')
+
+#%%
+kcat_list = np.logspace(-5, 5, 100)
+costs_list = []
+for kcat in kcat_list:
+    toy_ecf.kcat[1] = kcat
+    lnC = None
+    while lnC is None:
+        lnC = toy_ecf.ECM()
+    costs = toy_ecf.ECF(lnC)
+    costs_list.append(list(costs.flat))
+        
+costs_list = np.array(costs_list)
+#%%
+fig1 = plt.figure(figsize=(5, 5))
+ax = fig1.add_subplot(1, 1, 1)
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.plot(kcat_list, costs_list)
+ax.plot(kcat_list, costs_list.sum(1))
+ax.legend(['enzyme 0 cost', 'enzyme 1 cost', 'enzyme 2 cost', 'total cost'])
+ax.set_xlabel('$k_{cat}$ of enzyme 1')
+

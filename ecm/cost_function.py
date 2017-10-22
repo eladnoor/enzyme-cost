@@ -45,6 +45,7 @@ class EnzymeCostFunction(object):
                 kcat_source - either 'gmean' or 'fwd'
                 dG0      - standard Gibbs free energies of reaction [kJ/mol]
                 KMM      - Michaelis-Menten coefficients [M]
+                lnC_bounds - lower and upper bounds on metabolite concentrations [ln M]
                 A_act    - Hill coefficient matrix of allosteric activators [unitless]
                 A_inh    - Hill coefficient matrix of allosteric inhibitors [unitless]
                 K_act    - affinity coefficient matrix of allosteric activators [M]
@@ -53,7 +54,8 @@ class EnzymeCostFunction(object):
                            allowed metabolite concentration [M]
         """
         self.params = dict(ECF_DEFAULTS)
-        self.params.update(params)
+        if params is not None:
+            self.params.update(params)
         self.Nc, self.Nr = S.shape
 
         assert flux.shape       == (self.Nr, 1)
@@ -84,13 +86,13 @@ class EnzymeCostFunction(object):
 
         # molecular weights of enzymes and metabolites
         if mw_enz is None:
-            self.mw_enz = np.zeros((self.Nr, 1))
+            self.mw_enz = np.ones((self.Nr, 1))
         else:
             assert mw_enz.shape == ((self.Nr, 1))
             self.mw_enz = mw_enz
 
         if mw_met is None:
-            self.mw_met = np.zeros((self.Nc, 1))
+            self.mw_met = np.ones((self.Nc, 1))
         else:
             assert mw_met.shape == (self.Nc, 1)
             self.mw_met = mw_met
@@ -413,9 +415,15 @@ class EnzymeCostFunction(object):
             else:
                 raise Exception('Unknown regularization: ' + self.regularization)
 
+        if lnC0 is None:
+            mdf, params = self.MDF()
+            if np.isnan(mdf) or mdf < 0.0:
+                raise ValueError('It seems that the problem is thermodynamically'
+                                 ' infeasible, therefore ECM is not applicable.')
+            lnC0 = params['ln concentrations']
         assert lnC0.shape == (self.Nc, 1)
 
-        bounds = list(zip(self.lnC_bounds[:,0].flat, self.lnC_bounds[:,1].flat))
+        bounds = self.lnC_bounds.tolist()
 
         min_res = np.inf
         lnC_min = None
