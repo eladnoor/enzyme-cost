@@ -42,7 +42,7 @@ concentration	Succinate	C00042	1.185325381
 concentration	Sedoheptulose_7_phosphate	C05382	
 %			
 !!SBtab DocumentName='Model' TableName='EnzymeConcentration' TableType='Quantity' Unit='mM' SBtabVersion='0.8'			
-!QuantityType	!Reaction	!Identifiers:kegg.reaction	!EnzymeConcentration
+!QuantityType	!Reaction	!Reaction:Identifiers:kegg.reaction	!EnzymeConcentration
 concentration of enzyme	PTS_RPTSsy	RPTSsy	0.006888123
 concentration of enzyme	PGI_R02740	R02740	0.0023875436
 concentration of enzyme	PFK_R04779	R04779	0.0012386582
