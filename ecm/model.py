@@ -26,7 +26,7 @@ class ECMmodel(object):
         self._model_sbtab = model_sbtab
         self._validate_sbtab = validate_sbtab
         self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
-            'Compound:Identifiers:kegg.compound', 'NameForPlots')
+            'Identifiers:kegg.compound', 'NameForPlots')
         self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
             'ID', 'NameForPlots')
         self.kegg_model = ECMmodel.GenerateKeggModel(self._model_sbtab)
@@ -38,7 +38,7 @@ class ECMmodel(object):
             ext_col_name = 'IsConstant'
 
         self.cid2external = self._model_sbtab.GetDictFromTable(
-            'Compound', 'Compound:Identifiers:kegg.compound', ext_col_name,
+            'Compound', 'Identifiers:kegg.compound', ext_col_name,
             value_mapping=str2bool)
 
         self._ReadConcentrationBounds()
@@ -53,7 +53,7 @@ class ECMmodel(object):
             self.cc_model = None
 
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw = \
-            ECMmodel._ReadKineticParameters(self._model_sbtab)
+            ECMmodel._ReadParameters(self._model_sbtab)
 
         if self.ecf_params['dG0_source'] == 'keq_table':
             self._CalcGibbsEnergiesFromKeq(rid2keq)
@@ -129,7 +129,7 @@ class ECMmodel(object):
     @staticmethod
     def GenerateKeggModel(sbtab_dict):
         met2kegg = sbtab_dict.GetDictFromTable('Compound', 'ID',
-            'Compound:Identifiers:kegg.compound')
+            'Identifiers:kegg.compound')
 
         reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'ID')
         reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'ReactionFormula')
@@ -149,7 +149,7 @@ class ECMmodel(object):
         return model
 
     @staticmethod
-    def _ReadKineticParameters(sbtab_dict, table_name='RateConstant'):
+    def _ReadParameters(sbtab_dict, table_name='Parameter'):
         cols = ['QuantityType',
                 'Value',
                 'Compound:Identifiers:kegg.compound',

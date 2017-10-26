@@ -1,5 +1,5 @@
 !!SBtab TableName='Reaction' TableType='Reaction' Document='Model' SBtabVersion='0.8'							
-!ID	!ReactionFormula	!Reaction:Identifiers:kegg.reaction	!IsReversible	!Gene	!NameForPlots		
+!ID	!ReactionFormula	!Identifiers:kegg.reaction	!IsReversible	!Gene	!NameForPlots		
 PTS_RPTSsy	D_Glucose + Phosphoenolpyruvate <=> Pyruvate + D_Glucose_6_phosphate	RPTSsy	True	PTS	pts		
 PGI_R02740	D_Glucose_6_phosphate <=> D_Fructose_6_phosphate	R02740	True	PGI	pgi		
 PFK_R04779	ATP + D_Fructose_6_phosphate <=> ADP + D_Fructose_1_6_bisphosphate	R04779	True	PFK	pfk		
@@ -33,7 +33,7 @@ PPC_R00345	Orthophosphate + Oxaloacetate <=> CO2 + Phosphoenolpyruvate	R00345	Tr
 CNL_R99999	D_Fructose_6_phosphate + 2 Orthophosphate + 2 NADplus + ADP <=> 2 Phosphoenolpyruvate + 2 H2O + 2 NADH + ATP	R99999	True	pfkB + pfkA + fbaA + fbaB + tpiA + gapA + pgk + gpmA + gpmM + eno	cnl		
 %							
 !!SBtab TableName='Compound' TableType='Compound' Document='Model' SBtabVersion='0.8'							
-!ID	!Name	!Compound:Identifiers:kegg.compound	!IsConstant	!NameForPlots			
+!ID	!Name	!Identifiers:kegg.compound	!IsConstant	!NameForPlots			
 _S__Malate	(S)-Malate	C00149	False	mal			
 Acetyl_CoA	Acetyl-CoA	C00024	False	acCoA			
 Fumarate	Fumarate	C00122	False	fum			
@@ -75,7 +75,7 @@ _2_Phospho_D_glycerate	2-Phospho-D-glycerate	C00631	False	2PG
 Succinate	Succinate	C00042	False	succ			
 Sedoheptulose_7_phosphate	Sedoheptulose 7-phosphate	C05382	False	S7P			
 %							
-!!SBtab TableName='RateConstant' TableType='Quantity' Document='Model' SBtabVersion='0.8'							
+!!SBtab TableName='Parameter' TableType='Quantity' Document='Model' SBtabVersion='0.8'							
 !QuantityType	!Value	!Unit	!Compound	!Reaction	!Compound:Identifiers:kegg.compound	!Reaction:Identifiers:kegg.reaction	!ID
 equilibrium constant	51340046	dimensionless		PTS_RPTSsy		RPTSsy	kEQ_R1
 equilibrium constant	0.36576352	dimensionless		PGI_R02740		R02740	kEQ_R2
