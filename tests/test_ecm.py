@@ -47,13 +47,13 @@ class TestReactionParsing(unittest.TestCase):
         
         toy_ecf = EnzymeCostFunction(S, v, kcat, dG0_r, K_M, lnC_bounds, None, None,
                                      A_act, A_inh, K_act, K_inh)
-        lnC = toy_ecf.ECM()
+        lnC = toy_ecf.ECM(n_iter=20)
         concs = np.exp(lnC)
         costs = toy_ecf.ECF(lnC)
-        self.assertAlmostEqual(concs[0,0], 1e-1, 1)
-        self.assertAlmostEqual(concs[1,0], 1.5e-2, 2)
-        self.assertAlmostEqual(concs[2,0], 6.7e-3, 3)
-        self.assertAlmostEqual(concs[3,0], 1e-9, 9)
+        self.assertAlmostEqual(concs[0,0], 0.1, 2)
+        self.assertAlmostEqual(concs[1,0], 0.015, 3)
+        self.assertAlmostEqual(concs[2,0], 0.0067, 4)
+        self.assertAlmostEqual(concs[3,0], 1e-9, 8)
 
         self.assertAlmostEqual(costs[0,0], 3.93, 2)
         self.assertAlmostEqual(costs[1,0], 3.08, 2)

@@ -436,8 +436,11 @@ class EnzymeCostFunction(object):
 
             res = optfun(r.x)[0, 0]
             if res < min_res:
+                if min_res == np.inf:
+                    print('first = %.3f' % res)
+                else:
+                    print('decrease factor = %.3e' %  (1.0 - res/min_res))
                 min_res = res
-                print('%f' %  res)
                 lnC_min = np.matrix(r.x).T
 
         return lnC_min
