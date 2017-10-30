@@ -36,7 +36,6 @@ logging.info('Solving ECM problem')
 lnC_ECM = model.ECM()
 
 fig1 = plt.figure(figsize=(14, 5))
-
 ax_MDF = fig1.add_subplot(1, 2, 1)
 model.PlotEnzymeDemandBreakdown(lnC_MDF, ax_MDF, plot_measured=True)
 ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
@@ -51,3 +50,9 @@ fig3 = plt.figure(figsize=(6, 6))
 fig3.suptitle('Enzyme Concentrations')
 ax = fig3.add_subplot(1, 1, 1, xscale='log', yscale='log')
 model.ValidateEnzymeConcentrations(lnC_ECM, ax)
+
+#%%
+fig4 = plt.figure(figsize=(6, 3))
+ax_ECM = fig4.add_subplot(1, 1, 1, sharey=ax_MDF)
+model.PlotEnzymeDemandBreakdown(lnC_ECM, ax_ECM, plot_measured=True)
+fig4.savefig(os.path.join(RESULT_DIR, 'breakdown.svg'))
