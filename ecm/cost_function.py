@@ -13,19 +13,6 @@ from ecm.util import RT, ECF_DEFAULTS, CastToColumnVector
 QUAD_REGULARIZATION_COEFF = 0.2
 METABOLITE_WEIGHT_CORRECTION_FACTOR = 1
 
-class NonSteadyStateSolutionError(Exception):
-    pass
-
-class ThermodynamicallyInfeasibleError(Exception):
-
-    def __init__(self, y=None):
-        if y is None:
-            Exception.__init__(self, 'this reaction system has no feasible solutions')
-        else:
-            Exception.__init__(self, 'y = %s : is thermodynamically infeasible'
-                                     % str(np.exp(y)))
-    pass
-
 class EnzymeCostFunction(object):
 
     ECF_LEVEL_NAMES = ['capacity [M]', 'thermodynamic', 'saturation', 'allosteric']

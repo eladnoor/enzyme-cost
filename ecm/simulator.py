@@ -6,7 +6,7 @@ Created on Tue May 19 10:07:17 2015
 """
 import numpy as np
 from scipy.integrate import ode
-from ecm.cost_function import ThermodynamicallyInfeasibleError
+from ecm.errors import ThermodynamicallyInfeasibleError
 
 class EnzymeCostSimulator(object):
     

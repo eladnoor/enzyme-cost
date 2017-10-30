@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from optimized_bottleneck_driving_force import Pathway
+from ecm.optimized_bottleneck_driving_force import Pathway
 
 def compare():
     G0 = np.random.randn(10, 1)*5 - 3
@@ -13,7 +13,8 @@ def compare():
         S[i+1, i] = 1
     x_min = np.ones((N+1, 1)) * -6 * np.log(10)
     x_max = np.ones((N+1, 1)) * -2 * np.log(10)
-    path = Pathway(S, fluxes, G0, x_min, x_max)
+    lnC_bounds = np.hstack([x_min, x_max])
+    path = Pathway(S, fluxes, G0, lnC_bounds)
 
     obd, params = path.FindOBD()
     if obd < 0:
@@ -55,17 +56,19 @@ def multi_compare():
     
 def try_ECF():
 #    G0 = np.random.randn(10, 1)*5 - 3
-    G0 = np.array([-20, -20, -3, -6, -20, -20, -1, -1, -1, -20, -20, -20]) # in units of RT
+    G0 = np.matrix([-20, -20, -3, -6, -20, -20, -1, -1, -1, -20, -20, -20]).T # in units of RT
     N = G0.shape[0]
-    fluxes = [1] * N
+    fluxes = np.matrix([1] * N).T
     S = np.zeros((N+1, N))
     for i in range(N):
         S[i, i] = -1
         S[i+1, i] = 1
     x_min = np.ones((N+1, 1)) * -6 * np.log(10)
     x_max = np.ones((N+1, 1)) * -2 * np.log(10)
-    path = Pathway(S, fluxes, G0, x_min, x_max)
-    print(path.FindECF())
+    lnC_bounds = np.hstack([x_min, x_max])
+    path = Pathway(S, fluxes, G0, lnC_bounds)
+    mdf, params = path.FindMDF()
+    print(mdf)
     
 if __name__ == "__main__":
     #multi_compare()

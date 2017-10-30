@@ -424,8 +424,7 @@ class ECMmodel(object):
 
         # remove H2O from the list and sort by descending volume
         bar_data = zip(vols.flat, labels, colors)
-        bar_data = filter(lambda x: x[1] != 'h2o', bar_data)
-        bar_data.sort(reverse=True)
+        bar_data = sorted(filter(lambda x: x[1] != 'h2o', bar_data), reverse=True)
         vols, labels, colors = zip(*bar_data)
         return vols, labels, colors
 
