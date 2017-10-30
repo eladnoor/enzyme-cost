@@ -10,22 +10,26 @@ enzyme level to get the minimal enzyme cost needed to achieve a certain
 pathway flux.
 
 Dependencies:
-- Ubuntu packages: (sudo apt-get install X)
-    - liblapack-dev (3.6.0)
+- Ubuntu packages: `sudo apt install X`
+    - glpk-utils (4.63-1)
 
-- PyPI packages:   (sudo pip install X)
-    - tablib (0.11.3)
-    - cvxopt (1.1.9)
-    - cvxpy  (0.4.8)
-    - ecos   (2.0.4)
-    - seaborn (0.7.1)
-    - matplotlib (2.0.0)
-    - numpy (1.12.0)
-    - scipy (0.18.1)
-    - pulp (1.6.1)
-    - pyparsing (2.1.10)
+- PyPI packages:   `sudo pip install X`
+    - numpy (1.13.3)
+    - scipy (1.0.0)
+    - matplotlib (2.1.0)
+    - pulp (1.6.8)
+    - pandas (0.21.0)
+    - tablib (0.12.1)
     
-- SBtab: (git clone https://github.com/derHahn/SBtab.git)
+- Component Contribution (optional):
+```
+git clone https://github.com/eladnoor/component-contribution.git
+```
 
-- Component Contribution: (git clone https://github.com/eladnoor/component-contribution.git)
 
+Example
+-------
+Try running the example script:
+```
+python -m example.test
+```
