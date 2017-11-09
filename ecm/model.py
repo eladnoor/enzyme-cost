@@ -16,9 +16,15 @@ from ecm.colors import ColorMap
 from ecm.util import RT, CELL_VOL_PER_DW, ECF_DEFAULTS, str2bool, PlotCorrelation
 from ecm.errors import ThermodynamicallyInfeasibleError
 
+import sys, os
+sys.path.append(os.path.expanduser('~/git/SBtab/python'))
+from SBtab import SBtabTable
+from tablibIO import writeTSV
+import pandas as pd
+
 class ECMmodel(object):
 
-    def __init__(self, model_sbtab, validate_sbtab, ecf_params=None):
+    def __init__(self, model_sbtab, validate_sbtab=None, ecf_params=None):
 
         self.ecf_params = dict(ECF_DEFAULTS)
         if ecf_params is not None:
@@ -396,6 +402,9 @@ class ECMmodel(object):
         raise ValueError('Cannot convert these units to M/s: ' + unit)
 
     def _GetMeasuredMetaboliteConcentrations(self):
+        if self._validate_sbtab is None:
+            raise Exception('cannot validate results because no validation data'
+                            ' was given')
         unit = self._validate_sbtab.GetTableAttribute('Concentration', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
 
@@ -405,6 +414,9 @@ class ECMmodel(object):
             'Concentration', value_mapping=value_mapping)
 
     def _GetMeasuredEnzymeConcentrations(self):
+        if self._validate_sbtab is None:
+            raise Exception('cannot validate results because no validation data'
+                            ' was given')
         unit = self._validate_sbtab.GetTableAttribute('EnzymeConcentration', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
 
@@ -525,6 +537,42 @@ class ECMmodel(object):
 
         ax.set_xlabel('measured [M]')
         ax.set_ylabel('predicted [M]')
+
+    def ToSBtab(self, lnC, filename, document_name=''):
+        met_data = []
+        for i, cid in enumerate(self.kegg_model.cids):
+            met_name = self.kegg2met[cid]
+            met_data.append(('concentration', met_name, cid, np.exp(lnC[i, 0])))
+        met_df = pd.DataFrame(columns=['QuantityType', 'Compound',
+                                        'Compound:Identifiers:kegg.compound', 'ecm'],
+                               data=met_data)
+        met_sbtab = SBtabTable.fromDataFrame(met_df,
+            document_name,
+            'Quantity',
+            'Predicted concentrations',
+            'ECM metabolic state',
+            'mM')
+        met_sbtab.createDataset()
+        
+        
+        enz_conc = self.ecf.ECF(lnC)
+        enz_data = []
+        for i, rid in enumerate(self.kegg_model.rids):
+            rxn_name = self.kegg2rxn[rid]
+            enz_data.append(('concentration of enzyme', rxn_name, rid, enz_conc[i, 0]))
+        enz_df = pd.DataFrame(columns=['QuantityType', 'Reaction',
+                                       'Reaction:Identifiers:kegg.reaction', 'ecm'],
+                               data=enz_data)
+        enz_sbtab = SBtabTable.fromDataFrame(enz_df,
+            document_name,
+            'Quantity',
+            'Predicted enzyme levels',
+            'ECM metabolic state',
+            'mM')
+        enz_sbtab.createDataset()
+        
+        met_sbtab.writeSBtab('tsv', filename + '_met')
+        enz_sbtab.writeSBtab('tsv', filename + '_enz')
 
     def WriteHtmlTables(self, lnC, html):
         meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
