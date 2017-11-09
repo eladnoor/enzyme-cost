@@ -22,6 +22,21 @@ def MakeParser():
                      'given as a single SBtab file'))
     parser.add_argument('sbtab', type=str, help='SBtab input filename')
     parser.add_argument('respath', type=str, help='path for writing result files')
+    
+    parser.add_argument('--level', type=int, help='Enzyme Cost Function level: 1, 2, [3], or 4',
+                        default=3)
+    parser.add_argument('--dgsource', type=str,
+                        help="Source for dG0s: [keq_table], dG0r_table, or component_contribution",
+                        default='keq_table')
+    parser.add_argument('--kcatsource', type=str,
+                        help="Source for kcats: fwd or [gmean]",
+                        default='gmean')
+    parser.add_argument('--denominator', type=str,
+                        help="Rate law denominator: S, SP, 1S, 1SP, or [CM]",
+                        default='CM')
+    parser.add_argument('--regularization', type=str,
+                        help="Regularization method: none, [volume], or quadratic",
+                        default='volume')
     return parser
 
 ###############################################################################
@@ -37,8 +52,14 @@ logging.info('Reading SBtab files')
 modeldata_sbtabs = SBtabDict.FromSBtab(args.sbtab)
 
 logging.info('Creating an ECM model using the data')
-#ecf_params = {'regularization': None}
-ecf_params = {'regularization': 'volume'}
+
+ecf_params = {
+    'version'       : args.level,
+    'dG0_source'    : args.dgsource,
+    'kcat_source'   : args.kcatsource,
+    'denominator'   : args.denominator,
+    'regularization': args.regularization
+    }
 
 model = ECMmodel(modeldata_sbtabs, ecf_params=ecf_params)
 
