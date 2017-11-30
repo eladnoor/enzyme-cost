@@ -551,9 +551,8 @@ class ECMmodel(object):
             'Quantity',
             'Predicted concentrations',
             'ECM metabolic state',
-            'mM')
+            'M')
         met_sbtab.createDataset()
-        
         
         enz_conc = self.ecf.ECF(lnC)
         enz_data = []
@@ -568,11 +567,11 @@ class ECMmodel(object):
             'Quantity',
             'Predicted enzyme levels',
             'ECM metabolic state',
-            'mM')
+            'M')
         enz_sbtab.createDataset()
         
-        met_sbtab.writeSBtab('tsv', filename + '_met')
-        enz_sbtab.writeSBtab('tsv', filename + '_enz')
+        met_sbtab.writeSBtab('tsv', filename + 'met')
+        enz_sbtab.writeSBtab('tsv', filename + 'enz')
 
     def WriteHtmlTables(self, lnC, html):
         meas_enz2conc = self._GetMeasuredEnzymeConcentrations()
