@@ -19,14 +19,12 @@ import matplotlib.pyplot as plt
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 BASE_DIR = os.path.split(SCRIPT_DIR)[0]
-DEFAULT_CONFIG_FNAME = os.path.join(BASE_DIR, 'config.json')
 
 def MakeParser():
     parser = argparse.ArgumentParser(
         description=('Run Enzyme Cost Minimization (ECM)'))
-    parser.add_argument('--config_fname', type=str,
-                        help='Configuration filename',
-                        default=DEFAULT_CONFIG_FNAME)
+    parser.add_argument('config_fname', type=str,
+                        help='Configuration filename')
     return parser
 
 ###############################################################################
@@ -44,9 +42,9 @@ output_prefix = \
 
 ecf_params = config['ECF']
 
-logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.INFO)
 
-logging.info('Reading SBtab files')
+logging.info('Reading SBtab file: ' + input_sbtab_fname)
 modeldata_sbtabs = SBtabDict.FromSBtab(input_sbtab_fname)
 
 logging.info('Creating an ECM model using the data')
@@ -73,8 +71,10 @@ if config['IO']['generate_result_figures']:
     fig1 = plt.figure(figsize=(14, 5))
     ax_MDF = fig1.add_subplot(1, 2, 1)
     model.PlotEnzymeDemandBreakdown(lnC_MDF, ax_MDF, plot_measured=True)
+    ax_MDF.set_title('MDF results')
     ax_ECM = fig1.add_subplot(1, 2, 2, sharey=ax_MDF)
     model.PlotEnzymeDemandBreakdown(lnC_ECM, ax_ECM, plot_measured=True)
+    ax_ECM.set_title('ECF results')
     fig1.savefig(output_prefix + 'enzyme_demand.svg')
     
     if validation_sbtab_fname:

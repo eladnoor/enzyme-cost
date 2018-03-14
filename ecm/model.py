@@ -17,9 +17,8 @@ from ecm.util import RT, CELL_VOL_PER_DW, ECF_DEFAULTS, str2bool, PlotCorrelatio
 from ecm.errors import ThermodynamicallyInfeasibleError
 
 import sys, os
-sys.path.append(os.path.expanduser('~/git/SBtab/python'))
+sys.path.append(os.path.expanduser('~/git/SBtab'))
 from SBtab import SBtabTable
-from tablibIO import writeTSV
 import pandas as pd
 
 class ECMmodel(object):
@@ -31,10 +30,24 @@ class ECMmodel(object):
             self.ecf_params.update(ecf_params)
         self._model_sbtab = model_sbtab
         self._validate_sbtab = validate_sbtab
-        self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
-            'Identifiers:kegg.compound', 'NameForPlots')
-        self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
-            'ID', 'NameForPlots')
+        if '!NameForPlots' in self._model_sbtab['Compound'].columns_dict:
+            self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
+                'Identifiers:kegg.compound', 'NameForPlots')
+        elif '!Name' in self._model_sbtab['Compound'].columns_dict:
+            self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
+                'Identifiers:kegg.compound', 'Name')
+        else:
+            raise KeyError('Column "Name" or "NameForPlots" must be given for the Compounds table')
+            
+        if '!NameForPlots' in self._model_sbtab['Reaction'].columns_dict:
+            self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
+                'ID', 'NameForPlots')
+        elif '!Name' in self._model_sbtab['Reaction'].columns_dict:
+            self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
+                'ID', 'Name')
+        else:
+            raise KeyError('Column "Name" or "NameForPlots" must be given for the Reactions table')
+
         self.kegg_model = ECMmodel.GenerateKeggModel(self._model_sbtab)
 
         # a dictionary indicating which compound is external or not
@@ -411,18 +424,18 @@ class ECMmodel(object):
         # assume concentrations are in mM
         return self._validate_sbtab.GetDictFromTable(
             'Concentration', 'Compound:Identifiers:kegg.compound',
-            'Concentration', value_mapping=value_mapping)
+            'Value', value_mapping=value_mapping)
 
     def _GetMeasuredEnzymeConcentrations(self):
         if self._validate_sbtab is None:
             raise Exception('cannot validate results because no validation data'
                             ' was given')
-        unit = self._validate_sbtab.GetTableAttribute('EnzymeConcentration', 'Unit')
+        unit = self._validate_sbtab.GetTableAttribute('Concentration', 'Unit')
         value_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(unit)
 
         return self._validate_sbtab.GetDictFromTable(
             'EnzymeConcentration', 'Reaction',
-            'EnzymeConcentration', value_mapping=value_mapping)
+            'Value', value_mapping=value_mapping)
 
     def _GetVolumeDataForPlotting(self, lnC):
         labels = list(map(self.kegg2rxn.get, self.kegg_model.rids))
@@ -570,6 +583,8 @@ class ECMmodel(object):
             'M')
         enz_sbtab.createDataset()
         
+        # TODO: write both results as a concatenated SBtab (i.e. one file 
+        # with two tables)
         met_sbtab.writeSBtab('tsv', filename + 'met')
         enz_sbtab.writeSBtab('tsv', filename + 'enz')
 

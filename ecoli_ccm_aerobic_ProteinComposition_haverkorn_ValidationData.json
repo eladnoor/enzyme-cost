@@ -7,8 +7,8 @@
         "regularization": "volume"
     },
     "IO": {
-        "model_sbtab_fname": "~/git/enzyme-cost/data/ecoli_ccm_aerobic_channeling_ModelData.tsv",
-        	"validation_sbtab_fname": "~/git/enzyme-cost/data/ecoli_ccm_aerobic_channeling_ValidationData.tsv",
+        "model_sbtab_fname": "~/git/enzyme-cost/data/ecoli_ccm_aerobic_ProteinComposition_haverkorn_ECM_Model.tsv",
+        "validation_sbtab_fname": "~/git/enzyme-cost/data/ecoli_ccm_aerobic_ProteinComposition_haverkorn_ECM_ValidationData.tsv",
         "output_prefix": "~/git/enzyme-cost/res/ecoli_ccm_",
         "generate_result_sbtab": true,
         "generate_result_figures": true
