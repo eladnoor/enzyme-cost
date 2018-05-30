@@ -17,50 +17,47 @@ from ecm.util import RT, CELL_VOL_PER_DW, ECF_DEFAULTS, str2bool, PlotCorrelatio
 from ecm.errors import ThermodynamicallyInfeasibleError
 
 import sys, os
-sys.path.append(os.path.expanduser('~/git/SBtab'))
-from SBtab import SBtabTable
 import pandas as pd
 
 class ECMmodel(object):
 
-    def __init__(self, model_sbtab, validate_sbtab=None, ecf_params=None):
-
+    def __init__(self, df_dict, bound_unit='mM',
+                 flux_unit='mM/s', validate_sbtab=None,
+                 ecf_params=None):
         self.ecf_params = dict(ECF_DEFAULTS)
         if ecf_params is not None:
             self.ecf_params.update(ecf_params)
-        self._model_sbtab = model_sbtab
+        
         self._validate_sbtab = validate_sbtab
-        if '!NameForPlots' in self._model_sbtab['Compound'].columns_dict:
-            self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
-                'Identifiers:kegg.compound', 'NameForPlots')
-        elif '!Name' in self._model_sbtab['Compound'].columns_dict:
-            self.kegg2met = self._model_sbtab.GetDictFromTable('Compound',
-                'Identifiers:kegg.compound', 'Name')
+        
+        if 'NameForPlots' in df_dict['Compound']:
+            self.kegg2met = df_dict['Compound'].set_index('Identifiers:kegg.compound')['NameForPlots']
+        elif 'Name' in df_dict['Compound']:
+            self.kegg2met = df_dict['Compound'].set_index('Identifiers:kegg.compound')['Name']
         else:
             raise KeyError('Column "Name" or "NameForPlots" must be given for the Compounds table')
             
-        if '!NameForPlots' in self._model_sbtab['Reaction'].columns_dict:
-            self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
-                'ID', 'NameForPlots')
-        elif '!Name' in self._model_sbtab['Reaction'].columns_dict:
-            self.kegg2rxn = self._model_sbtab.GetDictFromTable('Reaction',
-                'ID', 'Name')
+        reaction_df = df_dict['Reaction']
+        if 'NameForPlots' in reaction_df:
+            self.kegg2rxn = reaction_df.set_index('ID')['NameForPlots']
+        elif 'Name' in reaction_df:
+            self.kegg2rxn = reaction_df.set_index('ID')['Name']
         else:
             raise KeyError('Column "Name" or "NameForPlots" must be given for the Reactions table')
 
-        self.kegg_model = ECMmodel.GenerateKeggModel(self._model_sbtab)
+        self.kegg_model = ECMmodel.GenerateKeggModel(df_dict['Compound'],
+                                                     df_dict['Reaction'])
 
         # a dictionary indicating which compound is external or not
-        if '!External' in self._model_sbtab['Compound'].columns:
-            ext_col_name = 'External'
+        if 'External' in df_dict['Compound']:
+            self.cid2external = df_dict['Compound']['External'].apply(str2bool)
+        elif 'IsConstant' in df_dict['Compound']:
+            self.cid2external = df_dict['Compound']['IsConstant'].apply(str2bool)
         else:
-            ext_col_name = 'IsConstant'
+            raise KeyError('Column "External" or "IsConstant" must be given for the Compounds table')
 
-        self.cid2external = self._model_sbtab.GetDictFromTable(
-            'Compound', 'Identifiers:kegg.compound', ext_col_name,
-            value_mapping=str2bool)
-
-        self._ReadConcentrationBounds()
+        self.cid2min_bound, self.cid2max_bound = \
+            ECMmodel.ReadConcentrationBounds(bound_unit, df_dict['ConcentrationConstraint'])
 
         try:
             from component_contribution.kegg_model import KeggModel as CCKeggModel
@@ -72,7 +69,7 @@ class ECMmodel(object):
             self.cc_model = None
 
         rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw = \
-            ECMmodel._ReadParameters(self._model_sbtab)
+            ECMmodel.ReadParameters(df_dict['Parameter'])
 
         if self.ecf_params['dG0_source'] == 'keq_table':
             self._CalcGibbsEnergiesFromKeq(rid2keq)
@@ -85,13 +82,12 @@ class ECMmodel(object):
                              self.ecf_params['dG0_source'])
 
         # read flux values and convert them to M/s
-        flux_units = self._model_sbtab.GetTableAttribute('Flux', 'Unit')
-        flux_mapping = ECMmodel._MappingToCanonicalFluxUnits(flux_units)
-        self.rid2flux = self._model_sbtab.GetDictFromTable(
-            'Flux', 'Reaction', 'Value', value_mapping=flux_mapping)
-
-        flux = np.matrix(list(map(self.rid2flux.get, self.kegg_model.rids))).T
-
+        flux_mapping = ECMmodel._MappingToCanonicalFluxUnits(flux_unit)
+        self.rid2flux = df_dict['Flux'].set_index('Reaction')
+        
+        flux = df_dict['Flux'].set_index('Reaction').loc[self.kegg_model.rids, 'Value']
+        flux = np.matrix(flux.apply(flux_mapping).values).T
+        
         # we only need to define get kcat in the direction of the flux
         # if we use the 'gmean' option, that means we assume we only know
         # the geometric mean of the kcat, and we distribute it between
@@ -118,8 +114,8 @@ class ECMmodel(object):
         dG0 = np.matrix(list(map(self.rid2dG0.get, self.kegg_model.rids))).T
         KMM = ECMmodel._GenerateKMM(self.kegg_model.cids,
                                     self.kegg_model.rids, rid_cid2KMM)
-        c_bounds = np.array(list(zip(map(self.cid2min_bound.get, self.kegg_model.cids),
-                                     map(self.cid2max_bound.get, self.kegg_model.cids))))
+        c_bounds = np.vstack([self.cid2min_bound[self.kegg_model.cids].values,
+                              self.cid2max_bound[self.kegg_model.cids].values]).T
         lnC_bounds = np.log(c_bounds) # assume bounds are in M
 
         # we need all fluxes to be positive, so for every negative flux,
@@ -137,6 +133,19 @@ class ECMmodel(object):
                                       mw_enz=mw_enz, mw_met=mw_met,
                                       lnC_bounds=lnC_bounds,
                                       params=self.ecf_params)
+    
+    def from_sbtabs(model_sbtab, 
+                    validate_sbtab=None, ecf_params=None):
+        
+        df_dict = {k: v.toDataFrame() for k, v in model_sbtab.items()}
+        
+        bound_unit = model_sbtab.GetTableAttribute('ConcentrationConstraint', 'Unit')
+        flux_unit = model_sbtab.GetTableAttribute('Flux', 'Unit')
+        return ECMmodel(df_dict,
+                        bound_unit=bound_unit,
+                        flux_unit=flux_unit,
+                        validate_sbtab=validate_sbtab,
+                        ecf_params=ecf_params)
 
     def WriteMatFile(self, file_name):
         mdict = self.ecf.Serialize()
@@ -146,14 +155,14 @@ class ECMmodel(object):
             savemat(fp, mdict, format='5')
 
     @staticmethod
-    def GenerateKeggModel(sbtab_dict):
-        met2kegg = sbtab_dict.GetDictFromTable('Compound', 'ID',
-            'Identifiers:kegg.compound')
-
-        reaction_names = sbtab_dict.GetColumnFromTable('Reaction', 'ID')
-        reaction_formulas = sbtab_dict.GetColumnFromTable('Reaction', 'ReactionFormula')
-        sparse_reactions = list(map(ParseReaction, reaction_formulas))
-
+    def GenerateKeggModel(compound_df, reaction_df):
+        # first, parse the reaction formulas and create a dictionary
+        # for each one (i.e. "sparse reaction")
+        sparse_reactions = list(map(ParseReaction,
+                                    reaction_df['ReactionFormula']))
+        
+        # use the compound table to convert the IDs to KEGG IDs
+        met2kegg = compound_df.set_index('ID')['Identifiers:kegg.compound']
         map_met2kegg = lambda spr : {met2kegg[k]: v for (k,v) in spr.items()}
         try:
             sparse_reactions_kegg = list(map(map_met2kegg, sparse_reactions))
@@ -162,13 +171,14 @@ class ECMmodel(object):
                             'is not defined in the Compound table: ' + str(e))
 
         kegg_reactions = [KeggReaction(s, rid=rid) for (s, rid)
-                          in zip(sparse_reactions_kegg, reaction_names)]
+                          in zip(sparse_reactions_kegg, reaction_df['ID'])]
 
-        model = KeggModel.from_kegg_reactions(kegg_reactions, has_reaction_ids=True)
+        model = KeggModel.from_kegg_reactions(kegg_reactions,
+                                              has_reaction_ids=True)
         return model
 
     @staticmethod
-    def _ReadParameters(sbtab_dict, table_name='Parameter'):
+    def ReadParameters(parameter_df):
         cols = ['QuantityType',
                 'Value',
                 'Compound:Identifiers:kegg.compound',
@@ -187,9 +197,9 @@ class ECMmodel(object):
 
         rid_cid2KMM = {}   # Michaelis-Menten constants
 
-        for i, row in enumerate(sbtab_dict.GetColumnsFromTable(table_name, cols)):
+        for i, row in parameter_df.iterrows():
             try:
-                typ, val, cid, rid, unit = row
+                typ, val, cid, rid, unit = [row[c] for c in cols]
                 val = float(val)
 
                 if typ in crctype2dict:
@@ -212,8 +222,8 @@ class ECMmodel(object):
                 else:
                     raise AssertionError('unrecognized Rate Constant Type: ' + typ)
             except AssertionError:
-                raise ValueError('Syntax error in SBtab table %s, row %d - %s' %
-                                 (table_name, i, row))
+                raise ValueError('Syntax error in Parameter table, row %d - %s' %
+                                 (i, row))
         # make sure not to count water as contributing to the volume or
         # cost of a reaction
         return rid2crc_gmean, rid2crc_fwd, rid2crc_rev, rid_cid2KMM, rid2keq, rid2mw, cid2mw
@@ -268,22 +278,20 @@ class ECMmodel(object):
         dG0_prime = self._GibbsEnergyFromMilliMolarToMolar(dGm_prime)
         self.rid2dG0 = dict(zip(self.kegg_model.rids, dG0_prime.flat))
 
-    def _ReadConcentrationBounds(self):
+    @staticmethod
+    def ReadConcentrationBounds(bound_unit, bound_df):
         """
             read the lower and upper bounds and convert them to M.
             verify that the values make sense.
         """
-        bound_units = self._model_sbtab.GetTableAttribute('ConcentrationConstraint', 'Unit')
-        bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_units)
-        self.cid2min_bound = self._model_sbtab.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Min',
-            value_mapping=bound_mapping)
-        self.cid2max_bound = self._model_sbtab.GetDictFromTable(
-            'ConcentrationConstraint', 'Compound:Identifiers:kegg.compound', 'Concentration:Max',
-            value_mapping=bound_mapping)
+        bound_df = bound_df.set_index('Compound:Identifiers:kegg.compound')
+        bound_mapping = ECMmodel._MappingToCanonicalConcentrationUnits(bound_unit)
+        cid2min_bound = bound_df['Concentration:Min'].apply(bound_mapping)
+        cid2max_bound = bound_df['Concentration:Max'].apply(bound_mapping)
 
-        for cid in self.cid2min_bound.keys():
-            assert self.cid2min_bound[cid] <= self.cid2max_bound[cid]
+        for cid in cid2min_bound.keys():
+            assert cid2min_bound[cid] <= cid2max_bound[cid]
+        return cid2min_bound, cid2max_bound
 
     @staticmethod
     def _GenerateKMM(cids, rids, rid_cid2KMM):
@@ -313,7 +321,11 @@ class ECMmodel(object):
         return params['ln concentrations']
 
     def ECM(self, lnC0=None, n_iter=10):
-        return self.ecf.ECM(lnC0 or self.MDF(), n_iter=n_iter)
+        if lnC0 is None:
+            lnC0 = self.MDF()
+            logging.info('initializing ECM using MDF result')
+        
+        return self.ecf.ECM(lnC0, n_iter=n_iter)
 
     def ECF(self, lnC):
         return self.ecf.ECF(lnC)
@@ -438,20 +450,23 @@ class ECMmodel(object):
             'Value', value_mapping=value_mapping)
 
     def _GetVolumeDataForPlotting(self, lnC):
-        labels = list(map(self.kegg2rxn.get, self.kegg_model.rids))
-        labels += list(map(self.kegg2met.get, self.kegg_model.cids))
-        enz_vol, met_vol = self.ecf.GetVolumes(lnC)
+        enz_vols, met_vols = self.ecf.GetVolumes(lnC)
 
-        vols = np.vstack((enz_vol, met_vol))
+        enz_labels = list(map(self.kegg2rxn.get, self.kegg_model.rids))
+        enz_data = sorted(zip(enz_vols.flat, enz_labels), reverse=True)
+        enz_vols, enz_labels = zip(*enz_data)
+        enz_colors = [(0.5, 0.8, 0.3)] * len(enz_vols)
 
-        colors = [(0.5, 0.8, 0.3)] * enz_vol.shape[0] + \
-                 [(0.3, 0.5, 0.8)] * met_vol.shape[0]
-
+        met_labels = list(map(self.kegg2met.get, self.kegg_model.cids))
+        met_data = zip(met_vols.flat, met_labels)
         # remove H2O from the list and sort by descending volume
-        bar_data = zip(vols.flat, labels, colors)
-        bar_data = sorted(filter(lambda x: x[1] != 'h2o', bar_data), reverse=True)
-        vols, labels, colors = zip(*bar_data)
-        return vols, labels, colors
+        met_data = sorted(filter(lambda x: x[1] != 'h2o', met_data))
+        met_vols, met_labels = zip(*met_data)
+        met_colors = [(0.3, 0.5, 0.8)] * len(met_vols)
+
+        return (enz_vols + met_vols,
+                enz_labels + met_labels,
+                enz_colors + met_colors)
 
     def PlotVolumes(self, lnC, ax):
         width = 0.8
@@ -552,6 +567,8 @@ class ECMmodel(object):
         ax.set_ylabel('predicted [M]')
 
     def ToSBtab(self, lnC, filename, document_name=''):
+        sys.path.append(os.path.expanduser('~/git/SBtab/python'))
+        from SBtab import SBtabTable
         met_data = []
         for i, cid in enumerate(self.kegg_model.cids):
             met_name = self.kegg2met[cid]

@@ -5,6 +5,7 @@ Created on Wed Feb 18 15:40:11 2015
 @author: noore
 """
 
+import logging
 import numpy as np
 from scipy.optimize import minimize
 from ecm.optimized_bottleneck_driving_force import Pathway
@@ -419,16 +420,21 @@ class EnzymeCostFunction(object):
             r = minimize(optfun, x0=lnC0_rand, bounds=bounds, method='SLSQP')
 
             if not r.success:
+                logging.info('iteration #%d: could not optimize, trying again' % i)
                 continue
 
             res = optfun(r.x)[0, 0]
             if res < min_res:
                 if min_res == np.inf:
-                    print('first = %.3f' % res)
+                    logging.info('iteration #%d: cost = %.5f' % (i, res))
                 else:
-                    print('decrease factor = %.3e' %  (1.0 - res/min_res))
+                    logging.info('iteration #%d: cost = %.5f, decrease factor = %.3e' %
+                                 (i, res, 1.0 - res/min_res))
                 min_res = res
                 lnC_min = np.matrix(r.x).T
+            else:
+                logging.info('iteration #%d: cost = %.5f, no improvement' % (i, res))
+                
 
         return lnC_min
 

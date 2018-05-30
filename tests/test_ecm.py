@@ -7,9 +7,17 @@ Created on Thu Aug 10 17:22:11 2017
 """
 
 import unittest
+import warnings
 import numpy as np
 from ecm.cost_function import EnzymeCostFunction
 from ecm.optimized_bottleneck_driving_force import Pathway
+
+def ignore_warnings(test_func):
+    def do_test(self, *args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            test_func(self, *args, **kwargs)
+    return do_test
 
 class TestReactionParsing(unittest.TestCase):
 
@@ -47,12 +55,14 @@ class TestReactionParsing(unittest.TestCase):
         self.K_act      = np.matrix(np.ones(self.S.shape))
         self.K_inh      = np.matrix(np.ones(self.S.shape))
 
+    @ignore_warnings
     def test_mdf(self):
         
         toy_ecf = Pathway(self.S, self.v, self.dG0_r, self.lnC_bounds)
         mdf, params = toy_ecf.FindMDF()
         self.assertAlmostEqual(mdf, 9.169, 3)
         
+    @ignore_warnings
     def test_ecm(self):
         
         toy_ecf = EnzymeCostFunction(self.S, self.v, self.kcat, self.dG0_r,

@@ -9,18 +9,20 @@ setup(
     license = 'MIT',
     packages=['ecm'],
     url='https://github.com/eladnoor/enzyme-cost',
-    install_requires=['scipy>=0.18.1',
-                      'numpy>=1.12.0',
-                      'pulp>=1.6.1',
-                      'pyparsing>=2.1.10'],
-    data_files=[('ecm_ecoli_aerobic', ['data/ecm_ecoli_aerobic.tsv']),
+    install_requires=['scipy>=1.0.0',
+                      'numpy>=1.13.3',
+                      'pulp>=1.6.8',
+                      'matplotlib>=2.1.0',
+                      'pandas>=0.21.0',
+                      'tablib>=0.12.1'],
+    data_files=[('ecm_ecoli_aerobic', ['data/ecoli_ccm_aerobic_ProteinComposition_haverkorn_ECM_Model.tsv']),
                ],
     classifiers=[
         # How mature is this project? Common values are
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
 
         # Indicate who your project is intended for
         'Intended Audience :: Science/Research',
@@ -31,7 +33,7 @@ setup(
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
     ],
 )
 

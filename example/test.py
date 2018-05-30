@@ -20,9 +20,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 DATA_DIR = os.path.join(os.path.split(SCRIPT_DIR)[0], 'data')
 RESULT_DIR = os.path.join(os.path.split(SCRIPT_DIR)[0], 'res')
 
-#exp_name = 'ecoli_ccm_aerobic_ProteinComposition_haverkorn'
-exp_name = 'ecoli_ccm_aerobic_channeling'
-modeldata_fname = os.path.join(DATA_DIR, '%s_ModelData.tsv' % exp_name)
+exp_name = 'ecoli_ccm_aerobic_ProteinComposition_haverkorn_ECM'
+#exp_name = 'ecoli_ccm_aerobic_channeling'
+modeldata_fname = os.path.join(DATA_DIR, '%s_Model.tsv' % exp_name)
 validationdata_fname = os.path.join(DATA_DIR, '%s_ValidationData.tsv' % exp_name)
 
 logging.info('Reading SBtab files')
@@ -33,8 +33,8 @@ logging.info('Creating an ECM model using the data')
 #ecf_params = {'regularization': None}
 ecf_params = {'regularization': 'volume'}
 
-model = ECMmodel(modeldata_sbtabs, validationdata_sbtabs,
-                 ecf_params=ecf_params)
+model = ECMmodel.from_sbtabs(modeldata_sbtabs, validationdata_sbtabs,
+                             ecf_params=ecf_params)
 
 logging.info('Solving MDF problem')
 lnC_MDF = model.MDF()
