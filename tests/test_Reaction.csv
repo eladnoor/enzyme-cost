@@ -1,0 +1,13 @@
+ID,Name,ReactionFormula,Identifiers:kegg.reaction
+hexokinase_R00299,hexokinase_R00299,C_d_glucose + C_atp <=> C_glucose_6_phosphate + C_adp,R00299
+phosphohex_R00771,phosphohex_R00771,C_glucose_6_phosphate <=> C_d_fructose_6_phosphoric_acid,R00771
+6_phosphof_R04779,6_phosphof_R04779,C_atp + C_d_fructose_6_phosphoric_acid <=> C_adp + C_fructose_16_bisphosphate,R04779
+fructose_b_R01070,fructose_b_R01070,C_fructose_16_bisphosphate <=> C_glycerone_phosphate + C_d_glyceraldehyde_3_phosphate,R01070
+triose_pho_R01015,triose_pho_R01015,C_glycerone_phosphate <=> C_d_glyceraldehyde_3_phosphate,R01015
+glyceralde_R01061,glyceralde_R01061,C_orthophosphate + C_nad + C_d_glyceraldehyde_3_phosphate <=> C_nadh + C_3_phospho_d_glyceroyl_phosphate,R01061
+phosphogly_R01512,phosphogly_R01512,C_adp + C_3_phospho_d_glyceroyl_phosphate <=> C_atp + C_3_phospho_d_glycerate,R01512
+phosphogly_R01518,phosphogly_R01518,C_3_phospho_d_glycerate <=> C_2_phospho_d_glycerate,R01518
+phosphopyr_R00658,phosphopyr_R00658,C_2_phospho_d_glycerate <=> C_phosphoenolpyruvate + C_h2o,R00658
+pyruvate_k_R00200,pyruvate_k_R00200,C_adp + C_phosphoenolpyruvate <=> C_pyruvate + C_atp,R00200
+pyruvate_d_R00224,pyruvate_d_R00224,C_pyruvate <=> C_acetaldehyde + C_co2,R00224
+retinal_re_R00754,retinal_re_R00754,C_acetaldehyde + C_nadh <=> C_ethanol + C_nad,R00754

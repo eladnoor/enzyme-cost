@@ -1,0 +1,13 @@
+QuantityType,Reaction,Reaction:Identifiers:kegg.reaction,Value
+flux,hexokinase_R00299,R00299,1
+flux,phosphohex_R00771,R00771,1
+flux,6_phosphof_R04779,R04779,1
+flux,fructose_b_R01070,R01070,1
+flux,triose_pho_R01015,R01015,1
+flux,glyceralde_R01061,R01061,2
+flux,phosphogly_R01512,R01512,2
+flux,phosphogly_R01518,R01518,2
+flux,phosphopyr_R00658,R00658,2
+flux,pyruvate_k_R00200,R00200,2
+flux,pyruvate_d_R00224,R00224,2
+flux,retinal_re_R00754,R00754,2

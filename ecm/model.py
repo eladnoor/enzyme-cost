@@ -21,9 +21,17 @@ import pandas as pd
 
 class ECMmodel(object):
 
+    DATAFRAME_NAMES = ['Compound', 'Reaction', 'ConcentrationConstraint',
+                       'Parameter', 'Flux']
+    
     def __init__(self, df_dict, bound_unit='mM',
                  flux_unit='mM/s', validate_sbtab=None,
                  ecf_params=None):
+        
+        for n in ECMmodel.DATAFRAME_NAMES:
+            if n not in df_dict.keys():
+                raise KeyError('A DataFrame named %s is missing from the model' % n)
+        
         self.ecf_params = dict(ECF_DEFAULTS)
         if ecf_params is not None:
             self.ecf_params.update(ecf_params)

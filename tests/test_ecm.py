@@ -9,6 +9,8 @@ Created on Thu Aug 10 17:22:11 2017
 import unittest
 import warnings
 import numpy as np
+import pandas as pd
+from ecm.model import ECMmodel
 from ecm.cost_function import EnzymeCostFunction
 from ecm.optimized_bottleneck_driving_force import Pathway
 
@@ -56,14 +58,14 @@ class TestReactionParsing(unittest.TestCase):
         self.K_inh      = np.matrix(np.ones(self.S.shape))
 
     @ignore_warnings
-    def test_mdf(self):
+    def test_toy_mdf(self):
         
         toy_ecf = Pathway(self.S, self.v, self.dG0_r, self.lnC_bounds)
         mdf, params = toy_ecf.FindMDF()
         self.assertAlmostEqual(mdf, 9.169, 3)
         
     @ignore_warnings
-    def test_ecm(self):
+    def test_toy_ecm(self):
         
         toy_ecf = EnzymeCostFunction(self.S, self.v, self.kcat, self.dG0_r,
                                      self.K_M, self.lnC_bounds, None, None,
@@ -80,6 +82,15 @@ class TestReactionParsing(unittest.TestCase):
         self.assertAlmostEqual(costs[0,0], 3.93, 2)
         self.assertAlmostEqual(costs[1,0], 3.08, 2)
         self.assertAlmostEqual(costs[2,0], 5.22, 2)
+
+    @ignore_warnings
+    def test_ecm(self):
+        df_names = ECMmodel.DATAFRAME_NAMES
+        df_dict = {n : pd.read_csv('tests/test_%s.csv' % n) for n in df_names}
+        ecm_model = ECMmodel(df_dict, flux_unit='mM/s', bound_unit='M')
+        lnC = ecm_model.ECM()
+        score = ecm_model.ecf.ECF(lnC).sum()
+        self.assertAlmostEqual(score, 0.01514, 5)
         
 if __name__ == '__main__':
     unittest.main()

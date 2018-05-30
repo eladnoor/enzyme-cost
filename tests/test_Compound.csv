@@ -1,0 +1,21 @@
+ID,Name,Identifiers:kegg.compound,IsConstant
+C_d_glucose,D-Glucose,C00031,False
+C_atp,ATP,C00002,False
+C_glucose_6_phosphate,Glucose 6-phosphate,C00092,False
+C_adp,ADP,C00008,False
+C_d_fructose_6_phosphoric_acid,D-Fructose 6-phosphoric acid,C00085,False
+C_fructose_16_bisphosphate,"Fructose-1,6-bisphosphate",C05378,False
+C_glycerone_phosphate,Glycerone phosphate,C00111,False
+C_d_glyceraldehyde_3_phosphate,D-Glyceraldehyde 3-phosphate,C00118,False
+C_orthophosphate,Orthophosphate,C00009,False
+C_nad,NAD+,C00003,False
+C_nadh,NADH,C00004,False
+C_3_phospho_d_glyceroyl_phosphate,3-Phospho-D-glyceroyl phosphate,C00236,False
+C_3_phospho_d_glycerate,3-Phospho-D-glycerate,C00197,False
+C_2_phospho_d_glycerate,2-Phospho-D-glycerate,C00631,False
+C_phosphoenolpyruvate,Phosphoenolpyruvate,C00074,False
+C_h2o,H2O,C00001,False
+C_pyruvate,Pyruvate,C00022,False
+C_acetaldehyde,Acetaldehyde,C00084,False
+C_co2,CO2,C00011,False
+C_ethanol,Ethanol,C00469,False
