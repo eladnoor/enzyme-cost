@@ -36,17 +36,16 @@ class Pathway(object):
         # since we don't want them to constrain the MDF to be 0.
 
         flux_sign = list(map(np.sign, self.fluxes.flat))
-        active_fluxes = np.abs(np.matrix(flux_sign)).T
-        I_dir = np.matrix(np.diag(flux_sign))
+        active_fluxes = np.abs(np.array(flux_sign, ndmin=2)).T
+        I_dir = np.diag(flux_sign)
 
-        A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, active_fluxes]),
-                                 np.hstack([np.eye(self.Nc),  np.zeros((self.Nc, 1))]),
-                                 np.hstack([-np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
-        b = np.matrix(np.vstack([-(I_dir * self.dG0) / RT,
-                                  self.lnC_bounds[:, 1:],
-                                 -self.lnC_bounds[:, :1]]))
-        c = np.matrix(np.vstack([np.zeros((self.Nc, 1)),
-                                 np.ones((1, 1))]))
+        A = np.vstack([np.hstack([np.dot(I_dir, self.S.T), active_fluxes]),
+                       np.hstack([np.eye(self.Nc),  np.zeros((self.Nc, 1))]),
+                       np.hstack([-np.eye(self.Nc), np.zeros((self.Nc, 1))])])
+        b = np.vstack([-(np.dot(I_dir, self.dG0)) / RT,
+                       self.lnC_bounds[:, 1:],
+                       -self.lnC_bounds[:, :1]])
+        c = np.vstack([np.zeros((self.Nc, 1)), np.ones((1, 1))])
 
         return A, b, c
 
@@ -147,15 +146,15 @@ class Pathway(object):
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
 
         mdf = pulp.value(lnC[-1])
-        lnC = np.matrix(list(map(pulp.value, lnC[0:self.Nc]))).T
+        lnC = np.array(list(map(pulp.value, lnC[0:self.Nc])), ndmin=2).T
 
         lp_dual, w, z, u = self._MakeMDFProblemDual()
         lp_dual.solve()
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
-        reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in range(self.Nr)]).T
-        compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in range(self.Nc)]).T - \
-                          np.matrix([pulp.value(u["%d" % j]) for j in range(self.Nc)]).T
+        reaction_prices = np.array([pulp.value(w["%d" % i]) for i in range(self.Nr)], ndmin=2).T
+        compound_prices = np.array([pulp.value(z["%d" % j]) for j in range(self.Nc)], ndmin=2).T - \
+                          np.array([pulp.value(u["%d" % j]) for j in range(self.Nc)], ndmin=2).T
 
         params = {'MDF': mdf,
                   'ln concentrations' : lnC,

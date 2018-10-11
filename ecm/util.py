@@ -28,9 +28,9 @@ def CastToColumnVector(v):
         if the input is a NumPy array or matrix, it will be reshaped to
     """
     if type(v) in [np.ndarray, np.matrix]:
-        return np.matrix(np.reshape(v, (np.prod(v.shape), 1)), dtype=float)
+        return np.array(np.reshape(v, (np.prod(v.shape), 1)), dtype=float, ndmin=2)
     if isinstance(v, Iterable):
-        return np.matrix(list(v), dtype=float).T
+        return np.array(list(v), dtype=float, ndmin=2).T
     else:
         raise ValueError('Can only cast lists or numpy arrays, not ' + str(type(v)))
 

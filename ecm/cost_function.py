@@ -67,10 +67,10 @@ class EnzymeCostFunction(object):
         # kcat_fwd using the formula:
         # kcat_fwd = kcat_gmean * sqrt(kEQ * prod_S(KMM) / prod_P(KMM))
         if self.params['kcat_source'] == 'gmean':
-            ln_KMM_prod = np.matrix(np.diag(self.S.T * np.log(self.KMM))).T
+            ln_KMM_prod = np.array(np.diag(np.dot(self.S.T, np.log(self.KMM))), ndmin=2).T
             ln_ratio = -ln_KMM_prod - self.dG0/RT
             factor = np.sqrt(np.exp(ln_ratio))
-            self.kcat = np.multiply(self.kcat, factor)
+            self.kcat = self.kcat * factor
 
         # molecular weights of enzymes and metabolites
         if mw_enz is None:
@@ -91,8 +91,8 @@ class EnzymeCostFunction(object):
         # allosteric regulation term
 
         if A_act is None or K_act is None:
-            self.A_act = np.matrix(np.zeros(S.shape))
-            self.K_act = np.matrix(np.ones(S.shape))
+            self.A_act = np.zeros(S.shape)
+            self.K_act = np.ones(S.shape)
         else:
             assert S.shape == A_act.shape
             assert S.shape == K_act.shape
@@ -100,8 +100,8 @@ class EnzymeCostFunction(object):
             self.K_act = K_act
 
         if A_inh is None or K_inh is None:
-            self.A_inh = np.matrix(np.zeros(S.shape))
-            self.K_inh = np.matrix(np.ones(S.shape))
+            self.A_inh = np.zeros(S.shape)
+            self.K_inh = np.ones(S.shape)
         else:
             assert S.shape == A_inh.shape
             assert S.shape == K_inh.shape
@@ -110,10 +110,10 @@ class EnzymeCostFunction(object):
 
         # preprocessing: these auxiliary matrices help calculate the ECF3 and
         # ECF4 faster.
-        self.D_S_coeff = np.matrix(np.diag(self.S_subs.T * np.log(self.KMM))).T
-        self.D_P_coeff = np.matrix(np.diag(self.S_prod.T * np.log(self.KMM))).T
-        self.act_denom = np.matrix(np.diag(self.A_act.T * np.log(self.K_act))).T
-        self.inh_denom = np.matrix(np.diag(self.A_inh.T * np.log(self.K_inh))).T
+        self.D_S_coeff = np.array(np.diag(np.dot(self.S_subs.T, np.log(self.KMM))), ndmin=2).T
+        self.D_P_coeff = np.array(np.diag(np.dot(self.S_prod.T, np.log(self.KMM))), ndmin=2).T
+        self.act_denom = np.array(np.diag(np.dot(self.A_act.T, np.log(self.K_act))), ndmin=2).T
+        self.inh_denom = np.array(np.diag(np.dot(self.A_inh.T, np.log(self.K_inh))), ndmin=2).T
 
         try:
             self.ECF = eval('self._ECF%d' % self.params['version'])
@@ -151,7 +151,7 @@ class EnzymeCostFunction(object):
         if len(lnC.shape) == 1:
             return -self.dG0 / RT - np.dot(self.S.T, lnC)
         else:
-            return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - self.S.T * lnC
+            return -np.tile(self.dG0 / RT, (1, lnC.shape[1])) - np.dot(self.S.T, lnC)
 
     def _EtaThermodynamic(self, lnC):
         assert lnC.shape[0] == self.Nc
@@ -177,7 +177,7 @@ class EnzymeCostFunction(object):
             lnC is a matrix)
         """
         assert lnC.shape[0] == self.Nc
-        return np.exp(self.S_subs.T * lnC - np.tile(self.D_S_coeff, (1, lnC.shape[1])))
+        return np.exp(np.dot(self.S_subs.T, lnC) - np.tile(self.D_S_coeff, (1, lnC.shape[1])))
 
     def _D_SP(self, lnC):
         """
@@ -189,8 +189,8 @@ class EnzymeCostFunction(object):
             lnC is a matrix)
         """
         assert lnC.shape[0] == self.Nc
-        return np.exp(self.S_subs.T * lnC - np.tile(self.D_S_coeff, (1, lnC.shape[1]))) + \
-               np.exp(self.S_prod.T * lnC - np.tile(self.D_P_coeff, (1, lnC.shape[1])))
+        return np.exp(np.dot(self.S_subs.T, lnC) - np.tile(self.D_S_coeff, (1, lnC.shape[1]))) + \
+               np.exp(np.dot(self.S_prod.T, lnC) - np.tile(self.D_P_coeff, (1, lnC.shape[1])))
 
     def _D_1S(self, lnC):
         """
@@ -224,12 +224,12 @@ class EnzymeCostFunction(object):
             lnC is a matrix)
         """
         assert lnC.shape[0] == self.Nc
-        D = np.matrix(np.zeros((self.Nr, lnC.shape[1])))
+        D = np.zeros((self.Nr, lnC.shape[1]))
         for k in range(lnC.shape[1]):
-            X_k = np.log(np.exp(np.tile(lnC[:, k], (1, self.Nr))) / self.KMM + 1.0)
-            ln_1_plus_S = np.matrix(np.diag(self.S_subs.T * X_k)).T
-            ln_1_plus_P = np.matrix(np.diag(self.S_prod.T * X_k)).T
-            D[:, k] = np.exp(ln_1_plus_S) + np.exp(ln_1_plus_P) - 1.0
+            X_k = np.log(np.exp(np.tile(lnC[:, k:k+1], (1, self.Nr))) / self.KMM + 1.0)
+            ln_1_plus_S = np.array(np.diag(np.dot(self.S_subs.T, X_k)), ndmin=2).T
+            ln_1_plus_P = np.array(np.diag(np.dot(self.S_prod.T, X_k)), ndmin=2).T
+            D[:, k:k+1] = np.exp(ln_1_plus_S) + np.exp(ln_1_plus_P) - 1.0
         return D
 
     def _EtaKinetic(self, lnC):
@@ -240,8 +240,8 @@ class EnzymeCostFunction(object):
 
     def _EtaAllosteric(self, lnC):
         assert lnC.shape[0] == self.Nc
-        kin_act = np.exp(-self.A_act.T * lnC + np.tile(self.act_denom, (1, lnC.shape[1])))
-        kin_inh = np.exp(self.A_inh.T * lnC - np.tile(self.inh_denom, (1, lnC.shape[1])))
+        kin_act = np.exp(-np.dot(self.A_act.T, lnC) + np.tile(self.act_denom, (1, lnC.shape[1])))
+        kin_inh = np.exp(np.dot(self.A_inh.T, lnC) - np.tile(self.inh_denom, (1, lnC.shape[1])))
         eta_kin = 1.0 / (1.0 + kin_act) / (1.0 + kin_inh)
         return eta_kin
 
@@ -259,7 +259,7 @@ class EnzymeCostFunction(object):
                 Vmax  - in units of [umol/min]
         """
         assert E.shape == (self.Nr, 1)
-        return np.multiply(self.kcat, E) # in M/s
+        return self.kcat * E # in M/s
 
     def _ECF1(self, lnC):
         """
@@ -273,7 +273,8 @@ class EnzymeCostFunction(object):
         # lnC is not used for ECF1, except to determine the size of the result
         # matrix.
         assert lnC.shape == (self.Nc, 1)
-        return np.tile(np.multiply(self.flux, 1.0/self.kcat), (1, lnC.shape[1]))
+        ecf1 = np.tile(self.flux / self.kcat, (1, lnC.shape[1]))
+        return ecf1
 
     def _ECF2(self, lnC):
         """
@@ -285,11 +286,10 @@ class EnzymeCostFunction(object):
                 Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
-        ecf2 = np.multiply(self._ECF1(lnC), 1.0/self._EtaThermodynamic(lnC))
+        ecf2 = self._ECF1(lnC) / self._EtaThermodynamic(lnC)
 
         # fix the "fake" values that were given in ECF2 to infeasible reactions
         ecf2[ecf2 < 0] = np.nan
-
         return ecf2
 
     def _ECF3(self, lnC):
@@ -304,7 +304,8 @@ class EnzymeCostFunction(object):
         """
         # calculate the product of all substrates and products for the kinetic term
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self._ECF2(lnC), 1.0/self._EtaKinetic(lnC))
+        ecf3 = self._ECF2(lnC) / self._EtaKinetic(lnC)
+        return ecf3
 
     def _ECF4(self, lnC):
         """
@@ -317,7 +318,7 @@ class EnzymeCostFunction(object):
                 Gives the predicted enzyme concentrations in [M].
         """
         assert lnC.shape == (self.Nc, 1)
-        return np.multiply(self._ECF3(lnC), 1.0/self._EtaAllosteric(lnC))
+        return self._ECF3(lnC) / self._EtaAllosteric(lnC)
 
     def GetEnzymeCostPartitions(self, lnC):
         """
@@ -349,8 +350,8 @@ class EnzymeCostFunction(object):
         assert lnC.shape == (self.Nc, 1)
         enz_conc = self.ECF(lnC)
         met_conc = np.exp(lnC)
-        enz_vol = np.multiply(enz_conc, self.mw_enz)
-        met_vol = np.multiply(met_conc, self.mw_met)
+        enz_vol = enz_conc * self.mw_enz
+        met_vol = met_conc * self.mw_met
         return enz_vol, met_vol
 
     def GetFluxes(self, lnC, E):
@@ -359,9 +360,9 @@ class EnzymeCostFunction(object):
         assert E.shape == (self.Nr, 1)
 
         v = np.tile(self.GetVmax(E), (1, lnC.shape[1]))
-        v = np.multiply(v, self._EtaThermodynamic(lnC))
-        v = np.multiply(v, self._EtaKinetic(lnC))
-        v = np.multiply(v, self._EtaAllosteric(lnC))
+        v *= self._EtaThermodynamic(lnC)
+        v *= self._EtaKinetic(lnC)
+        v *= self._EtaAllosteric(lnC)
         return v
 
     def ECM(self, lnC0=None, n_iter=10):
@@ -388,8 +389,8 @@ class EnzymeCostFunction(object):
             enz_conc = self.ECF(lnC)
             met_conc = np.exp(lnC)
 
-            e = np.dot(enz_conc.T, self.mw_enz)
-            m = np.dot(met_conc.T, self.mw_met)
+            e = float(np.dot(enz_conc.T, self.mw_enz))
+            m = float(np.dot(met_conc.T, self.mw_met))
             if np.isnan(e) or e <= 0:
                 raise Exception('ECF returns NaN although all reactions are feasible')
 
@@ -416,14 +417,14 @@ class EnzymeCostFunction(object):
         min_res = np.inf
         lnC_min = None
         for i in range(n_iter):
-            lnC0_rand = np.multiply(lnC0, 1.0 + 0.1*np.random.rand(lnC0.shape[0], 1))
+            lnC0_rand = lnC0 * (1.0 + 0.1*np.random.rand(lnC0.shape[0], 1))
             r = minimize(optfun, x0=lnC0_rand, bounds=bounds, method='SLSQP')
 
             if not r.success:
                 logging.info('iteration #%d: could not optimize, trying again' % i)
                 continue
 
-            res = optfun(r.x)[0, 0]
+            res = optfun(r.x)
             if res < min_res:
                 if min_res == np.inf:
                     logging.info('iteration #%d: cost = %.5f' % (i, res))
@@ -431,7 +432,7 @@ class EnzymeCostFunction(object):
                     logging.info('iteration #%d: cost = %.5f, decrease factor = %.3e' %
                                  (i, res, 1.0 - res/min_res))
                 min_res = res
-                lnC_min = np.matrix(r.x).T
+                lnC_min = np.array(r.x, ndmin=2).T
             else:
                 logging.info('iteration #%d: cost = %.5f, no improvement' % (i, res))
                 

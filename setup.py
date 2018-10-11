@@ -14,7 +14,8 @@ setup(
                       'pulp>=1.6.8',
                       'matplotlib>=2.1.0',
                       'pandas>=0.21.0',
-                      'tablib>=0.12.1'],
+                      'tablib>=0.12.1',
+                      'equilibrator_api>=0.1.0'],
     data_files=[('ecm_ecoli_aerobic', ['data/ecoli_ccm_aerobic_ProteinComposition_haverkorn_ECM_Model.tsv']),
                ],
     classifiers=[

@@ -8,10 +8,10 @@ Created on Fri Apr  7 11:06:07 2017
 
 import re
 import numpy as np
+from equilibrator_api import Reaction, ComponentContribution
 
 class KeggParseException(Exception):
     pass
-
 
 def ParseReactionFormulaSide(s):
     """
@@ -89,7 +89,7 @@ class KeggReaction(object):
         return self.sparse.keys()
 
     def dense(self, cids):
-        s = np.matrix(np.zeros((len(cids), 1)))
+        s = np.zeros((len(cids), 1))
         for cid, coeff in self.items():
             s[cids.index(cid), 0] = coeff
         return s
@@ -113,6 +113,13 @@ class KeggModel(object):
             self.S = np.vstack((self.S[:i,:], self.S[i+1:,:]))
             self.cids.pop(i)
 
+        self.reactions = []
+        for i in range(self.S.shape[1]):
+            kegg_id_to_coeff = {self.cids[j]: self.S[j, i]
+                                for j in range(self.S.shape[0])
+                                if self.S[j, i] != 0}
+            self.reactions.append(Reaction(kegg_id_to_coeff))
+
         # remove H2O from the stoichiometric matrix if it exists
         if 'C00001' in self.cids:
             i = self.cids.index('C00001')
@@ -134,8 +141,14 @@ class KeggModel(object):
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
         cids = sorted(cids)
-        S = np.matrix(np.zeros((len(cids), len(kegg_reactions))))
+        S = np.zeros((len(cids), len(kegg_reactions)))
         for i, reaction in enumerate(kegg_reactions):
-            S[:, i] = np.matrix(reaction.dense(cids))
+            S[:, i:i+1] = reaction.dense(cids)
 
         return KeggModel(S, cids, rids)
+
+    def get_rid2dG0(self, pH=7.5, ionic_strength=0.1):
+        equilibrator = ComponentContribution(pH=pH, ionic_strength=ionic_strength)
+        rid2dG0 = dict(zip(self.rids,
+                           map(lambda r: equilibrator.dG0_prime(r)[0], self.reactions)))
+        return rid2dG0

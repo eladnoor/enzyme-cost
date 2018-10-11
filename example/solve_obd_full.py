@@ -56,9 +56,9 @@ def multi_compare():
     
 def try_ECF():
 #    G0 = np.random.randn(10, 1)*5 - 3
-    G0 = np.matrix([-20, -20, -3, -6, -20, -20, -1, -1, -1, -20, -20, -20]).T # in units of RT
+    G0 = np.array([-20, -20, -3, -6, -20, -20, -1, -1, -1, -20, -20, -20]).T # in units of RT
     N = G0.shape[0]
-    fluxes = np.matrix([1] * N).T
+    fluxes = np.array([1] * N, ndmin=2).T
     S = np.zeros((N+1, N))
     for i in range(N):
         S[i, i] = -1
